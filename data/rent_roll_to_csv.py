@@ -3,7 +3,7 @@
 Convert ResAnalytics "Rent Roll with Lease Charges" .xlsx files to CSV.
 
 Keeps:
-- the two-row table header
+- the two-row table header, combined into one CSV row
 - Current/Notice/Vacant Residents section
 - Future Residents/Applicants section
 - all unit/resident/charge rows and blank separator rows inside the body
@@ -38,6 +38,20 @@ def csv_value(value):
     if isinstance(value, date):
         return value.strftime("%m/%d/%Y")
     return value
+
+
+def combined_header(ws, header_row: int):
+    """Combine the two Excel header rows column by column."""
+    rows = ws.iter_rows(
+        min_row=header_row,
+        max_row=header_row + 1,
+        values_only=True,
+    )
+    first, second = rows
+    return [
+        " ".join(str(value) for value in values if value is not None)
+        for values in zip(first, second)
+    ]
 
 
 def find_header_row(ws) -> int:
@@ -76,10 +90,11 @@ def convert_file(input_path: Path, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
+        writer.writerow(combined_header(ws, header_row))
 
-        # Keep both header rows and the body exactly as separate rows.
+        # The two header rows were combined above; write only the body here.
         for row in ws.iter_rows(
-            min_row=header_row,
+            min_row=header_row + 3,
             max_row=body_end_row,
             values_only=True,
         ):

@@ -3,7 +3,7 @@
 Convert ResAnalytics "Unit Availability" .xlsx files to CSV.
 
 Keeps:
-- the two-row table header
+- the two-row table header, combined into one CSV row
 - property data rows
 
 Removes:
@@ -38,6 +38,20 @@ def csv_value(value):
     return value
 
 
+def combined_header(ws, header_row: int):
+    """Combine the two Excel header rows column by column."""
+    rows = ws.iter_rows(
+        min_row=header_row,
+        max_row=header_row + 1,
+        values_only=True,
+    )
+    first, second = rows
+    return [
+        " ".join(str(value) for value in values if value is not None)
+        for values in zip(first, second)
+    ]
+
+
 def find_header_row(ws) -> int:
     """Find the first header row: Property, Name, Avg., ..."""
     for row in ws.iter_rows():
@@ -51,18 +65,9 @@ def convert_file(input_path: Path, output_path: Path) -> None:
     ws = wb[wb.sheetnames[0]]
 
     header_row = find_header_row(ws)
-    second_header_row = header_row + 1
     data_start_row = header_row + 2
 
-    rows_to_write = []
-
-    # Preserve both header rows exactly as separate CSV rows.
-    for row in ws.iter_rows(
-        min_row=header_row,
-        max_row=second_header_row,
-        values_only=True,
-    ):
-        rows_to_write.append(row)
+    rows_to_write = [combined_header(ws, header_row)]
 
     # Keep property rows; omit blank rows and trailing Total row(s).
     for row in ws.iter_rows(min_row=data_start_row, values_only=True):
