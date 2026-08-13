@@ -1,1 +1,4 @@
-/data
+data/raw/
+data/csv/
+data/.venv/
+__pycache__/
