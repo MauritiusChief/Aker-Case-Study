@@ -94,10 +94,13 @@ def convert_file(input_path: Path, output_path: Path) -> None:
 
         # The two header rows were combined above; write only the body here.
         for row in ws.iter_rows(
-            min_row=header_row + 3,
+            min_row=header_row + 2,
             max_row=body_end_row,
             values_only=True,
         ):
+            if all(value is None for value in row):
+                continue
+            if (len(row) > 6 and row[6] == "Total") or (len(row) > 3 and row[3] == "Total"): continue
             writer.writerow(csv_value(value) for value in row)
 
     wb.close()
