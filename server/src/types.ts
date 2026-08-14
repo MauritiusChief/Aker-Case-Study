@@ -32,3 +32,25 @@ export interface RentRoll {
   amount: number | null;
   resident_id: string | null;
 }
+
+export interface AvailabilitySummary {
+  property_code: string;
+  property_name: string | null;
+  avg_sq_ft: number | null;
+  avg_rent: number | null;
+  total_units: number;
+  occupied_no_notice: number;
+  vacant_rented: number;
+  vacant_unrented: number;
+  notice_rented: number;
+  notice_unrented: number;
+  avail: number;
+  model: number;
+  down: number;
+  admin: number;
+  occ_pct: number;
+  occ_w_non_rev_pct: number;
+  leased_pct: number;
+  occupied: number;
+  vacant: number;
+}

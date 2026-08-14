@@ -17,4 +17,8 @@ export const UNIT_AVAILABILITY_CSV_DIR = path.join(CSV_ROOT, "unit_availability"
 
 export const DEFAULT_MONTH_YEAR = process.env.AKER_MONTH_YEAR ?? "02/2026";
 
+export const AS_OF_DATE = process.env.AKER_AS_OF_DATE ?? "02/25/2026";
+
+export const BOOKING_STALE_DAYS = Number(process.env.AKER_BOOKING_STALE_DAYS ?? 90);
+
 export const PORT = Number(process.env.PORT ?? 3000);

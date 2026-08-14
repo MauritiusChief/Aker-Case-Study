@@ -35,6 +35,7 @@ export interface ParsedRentRollFile {
   propertyCode: string;
   units: ParsedUnit[];
   residents: ParsedResident[];
+  futureResidents: ParsedResident[];
   rentRolls: ParsedRentRoll[];
 }
 
@@ -58,6 +59,7 @@ export function parseRentRollCsv(text: string, propertyCode: string): ParsedRent
   const rows = parseCsv(text);
   const units: ParsedUnit[] = [];
   const residents: ParsedResident[] = [];
+  const futureResidents: ParsedResident[] = [];
   const rentRolls: ParsedRentRoll[] = [];
 
   let inCurrentSection = false;
@@ -79,15 +81,13 @@ export function parseRentRollCsv(text: string, propertyCode: string): ParsedRent
     if (firstTrimmed === "Future Residents/Applicants") {
       inCurrentSection = false;
       inFutureSection = true;
+      currentUnit = null;
+      currentResidentId = null;
       continue;
     }
     if (firstTrimmed === "Summary Groups") {
       break;
     }
-    if (!inCurrentSection) continue;
-
-    // Header row: begins with "Unit" (and second column is "Unit Type").
-    if (firstTrimmed === "Unit") continue;
 
     const unit = toText(row[0]);
     const type = toText(row[1]);
@@ -103,6 +103,30 @@ export function parseRentRollCsv(text: string, propertyCode: string): ParsedRent
     const leaseEnd = toText(row[11]);
     const moveOut = toText(row[12]);
     const balance = toNumber(row[13]);
+
+    if (inFutureSection) {
+      // Header row: begins with "Unit".
+      if (firstTrimmed === "Unit") continue;
+      if (unit === null || residentId === null) continue;
+      futureResidents.push({
+        id: residentId,
+        name,
+        security_deposit: securityDeposit,
+        other_deposit: otherDeposit,
+        balance,
+        move_in_date: moveIn,
+        lease_end_date: leaseEnd,
+        move_out_date: null,
+        unit_code: unit,
+        property_code: propertyCode,
+      });
+      continue;
+    }
+
+    if (!inCurrentSection) continue;
+
+    // Header row: begins with "Unit" (and second column is "Unit Type").
+    if (firstTrimmed === "Unit") continue;
 
     if (unit !== null) {
       // A new unit/resident row.
@@ -147,7 +171,7 @@ export function parseRentRollCsv(text: string, propertyCode: string): ParsedRent
     }
   }
 
-  return { propertyCode, units, residents, rentRolls };
+  return { propertyCode, units, residents, futureResidents, rentRolls };
 }
 
 export function readRentRollFiles(): { propertyCode: string; parsed: ParsedRentRollFile }[] {

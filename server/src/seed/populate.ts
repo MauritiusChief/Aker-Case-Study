@@ -54,6 +54,12 @@ export function seedDatabase(db: AppDatabase, files: ParsedRentRollFile[], month
     }
 
     for (const file of parsedFiles) {
+      for (const resident of file.futureResidents) {
+        insertResident.run(resident);
+      }
+    }
+
+    for (const file of parsedFiles) {
       for (const unit of file.units) {
         if (unit.resident_id !== null) {
           updateUnitResident.run({
