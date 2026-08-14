@@ -29,6 +29,26 @@ function round2(value: number): number {
 const MOVE_IN_YYYYMMDD =
   "substr(fr.move_in_date, 7, 4) || substr(fr.move_in_date, 1, 2) || substr(fr.move_in_date, 4, 2)";
 
+const BOOKED_VACANT = `EXISTS (
+  SELECT 1 FROM residents fr
+  WHERE fr.property_code = u.property_code
+    AND fr.unit_code = u.unit_code
+    AND CAST(${MOVE_IN_YYYYMMDD} AS INTEGER) >= @cutoff
+)`;
+
+const BOOKED_OCCUPIED = `EXISTS (
+  SELECT 1 FROM residents fr
+  WHERE fr.property_code = u.property_code
+    AND fr.unit_code = u.unit_code
+    AND fr.id <> u.resident_id
+    AND CAST(${MOVE_IN_YYYYMMDD} AS INTEGER) >= @cutoff
+)`;
+
+type AvailabilityRow = Omit<
+  AvailabilitySummary,
+  "avail" | "occ_pct" | "occ_w_non_rev_pct" | "leased_pct" | "occupied" | "vacant"
+>;
+
 export function availabilityRouter(db: AppDatabase): Router {
   const router = Router();
 
@@ -43,44 +63,21 @@ export function availabilityRouter(db: AppDatabase): Router {
            ROUND(COALESCE(AVG(u.area), 0)) AS avg_sq_ft,
            ROUND(COALESCE(AVG(u.market_rent), 0)) AS avg_rent,
            COUNT(u.unit_code) AS total_units,
-           SUM(CASE WHEN u.resident_id IS NOT NULL AND r.move_out_date IS NULL THEN 1 ELSE 0 END) AS occupied_no_notice,
-           SUM(CASE WHEN u.unit_code IS NOT NULL AND u.resident_id IS NULL
-                     AND EXISTS (
-                       SELECT 1 FROM residents fr
-                       WHERE fr.property_code = u.property_code
-                         AND fr.unit_code = u.unit_code
-                         AND CAST(${MOVE_IN_YYYYMMDD} AS INTEGER) >= @cutoff
-                     ) THEN 1 ELSE 0 END) AS vacant_rented,
-           SUM(CASE WHEN u.unit_code IS NOT NULL AND u.resident_id IS NULL
-                     AND NOT EXISTS (
-                       SELECT 1 FROM residents fr
-                       WHERE fr.property_code = u.property_code
-                         AND fr.unit_code = u.unit_code
-                         AND CAST(${MOVE_IN_YYYYMMDD} AS INTEGER) >= @cutoff
-                     ) THEN 1 ELSE 0 END) AS vacant_unrented,
-           SUM(CASE WHEN u.resident_id IS NOT NULL AND r.move_out_date IS NOT NULL
-                     AND EXISTS (
-                       SELECT 1 FROM residents fr
-                       WHERE fr.property_code = u.property_code
-                         AND fr.unit_code = u.unit_code
-                         AND fr.id <> u.resident_id
-                         AND CAST(${MOVE_IN_YYYYMMDD} AS INTEGER) >= @cutoff
-                     ) THEN 1 ELSE 0 END) AS notice_rented,
-           SUM(CASE WHEN u.resident_id IS NOT NULL AND r.move_out_date IS NOT NULL
-                     AND NOT EXISTS (
-                       SELECT 1 FROM residents fr
-                       WHERE fr.property_code = u.property_code
-                         AND fr.unit_code = u.unit_code
-                         AND fr.id <> u.resident_id
-                         AND CAST(${MOVE_IN_YYYYMMDD} AS INTEGER) >= @cutoff
-                     ) THEN 1 ELSE 0 END) AS notice_unrented
+           SUM(CASE WHEN u.status = 'OCCUPIED' AND r.move_out_date IS NULL THEN 1 ELSE 0 END) AS occupied_no_notice,
+           SUM(CASE WHEN u.status = 'VACANT' AND ${BOOKED_VACANT} THEN 1 ELSE 0 END) AS vacant_rented,
+           SUM(CASE WHEN u.status = 'VACANT' AND NOT ${BOOKED_VACANT} THEN 1 ELSE 0 END) AS vacant_unrented,
+           SUM(CASE WHEN u.status = 'OCCUPIED' AND r.move_out_date IS NOT NULL AND ${BOOKED_OCCUPIED} THEN 1 ELSE 0 END) AS notice_rented,
+           SUM(CASE WHEN u.status = 'OCCUPIED' AND r.move_out_date IS NOT NULL AND NOT ${BOOKED_OCCUPIED} THEN 1 ELSE 0 END) AS notice_unrented,
+           SUM(CASE WHEN u.status = 'MODEL' THEN 1 ELSE 0 END) AS model,
+           SUM(CASE WHEN u.status = 'DOWN' THEN 1 ELSE 0 END) AS down,
+           SUM(CASE WHEN u.status = 'ADMIN' THEN 1 ELSE 0 END) AS admin
          FROM properties p
          LEFT JOIN residential_units u ON u.property_code = p.code
          LEFT JOIN residents r ON r.id = u.resident_id
          GROUP BY p.code, p.name
          ORDER BY p.code`
       )
-      .all({ cutoff }) as Omit<AvailabilitySummary, "avail" | "model" | "down" | "admin" | "occ_pct" | "occ_w_non_rev_pct" | "leased_pct" | "occupied" | "vacant">[];
+      .all({ cutoff }) as AvailabilityRow[];
 
     const result: AvailabilitySummary[] = rows.map((row) => {
       const totalUnits = row.total_units;
@@ -107,11 +104,11 @@ export function availabilityRouter(db: AppDatabase): Router {
         notice_rented: noticeRented,
         notice_unrented: noticeUnrented,
         avail,
-        model: 0,
-        down: 0,
-        admin: 0,
+        model: row.model,
+        down: row.down,
+        admin: row.admin,
         occ_pct: round2(pct(occupied)),
-        occ_w_non_rev_pct: round2(pct(occupied)),
+        occ_w_non_rev_pct: round2(pct(occupied + row.model + row.down + row.admin)),
         leased_pct: round2(pct(totalUnits - vacantUnrented)),
         occupied,
         vacant,

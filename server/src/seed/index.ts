@@ -1,4 +1,4 @@
-import { createConnection } from "../db/index.js";
+import { createConnection, createSchema } from "../db/index.js";
 import { DEFAULT_MONTH_YEAR, DB_PATH } from "../config.js";
 import { readRentRollFiles } from "./rent-roll.js";
 import { readUnitAvailabilityFiles } from "./unit-availability.js";
@@ -11,13 +11,15 @@ function main(): void {
   const db = createConnection();
 
   console.log(`Clearing existing data...`);
+  db.pragma("foreign_keys = OFF");
   db.exec(`
-    DELETE FROM rent_rolls;
-    UPDATE residential_units SET resident_id = NULL;
-    DELETE FROM residents;
-    DELETE FROM residential_units;
-    DELETE FROM properties;
+    DROP TABLE IF EXISTS rent_rolls;
+    DROP TABLE IF EXISTS residential_units;
+    DROP TABLE IF EXISTS residents;
+    DROP TABLE IF EXISTS properties;
   `);
+  db.pragma("foreign_keys = ON");
+  createSchema(db);
 
   console.log(`Importing properties from unit availability...`);
   const properties = readUnitAvailabilityFiles();

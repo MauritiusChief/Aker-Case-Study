@@ -16,9 +16,9 @@ function parseMonthYearArg(argv: string[], fallback: string): string {
 export function seedDatabase(db: AppDatabase, files: ParsedRentRollFile[], monthYear: string): void {
   const insertUnit = db.prepare(`
     INSERT OR IGNORE INTO residential_units
-      (unit_code, property_code, type, area, market_rent, resident_id)
+      (unit_code, property_code, type, area, market_rent, resident_id, status)
     VALUES
-      (@unit_code, @property_code, @type, @area, @market_rent, NULL)
+      (@unit_code, @property_code, @type, @area, @market_rent, NULL, @status)
   `);
 
   const updateUnitResident = db.prepare(`

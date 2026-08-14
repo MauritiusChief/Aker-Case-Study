@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS residential_units (
   area         INTEGER,
   market_rent  REAL,
   resident_id  TEXT,
+  status       TEXT NOT NULL DEFAULT 'OCCUPIED',
   PRIMARY KEY (unit_code, property_code),
   FOREIGN KEY (property_code) REFERENCES properties(code),
   FOREIGN KEY (resident_id) REFERENCES residents(id)
@@ -50,12 +51,16 @@ CREATE INDEX IF NOT EXISTS idx_units_property_code ON residential_units(property
 CREATE INDEX IF NOT EXISTS idx_residents_unit ON residents(unit_code, property_code);
 `;
 
+export function createSchema(db: Database.Database): void {
+  db.exec(SCHEMA);
+}
+
 export function createConnection(dbPath: string = DB_PATH): Database.Database {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
-  db.exec(SCHEMA);
+  createSchema(db);
   return db;
 }
 

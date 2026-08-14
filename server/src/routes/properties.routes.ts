@@ -26,7 +26,7 @@ export function propertiesRouter(db: AppDatabase): Router {
   router.get("/:code/units", (req, res) => {
     const rows = db
       .prepare(
-        `SELECT unit_code, property_code, type, area, market_rent, resident_id
+        `SELECT unit_code, property_code, type, area, market_rent, resident_id, status
          FROM residential_units WHERE property_code = ? ORDER BY unit_code`
       )
       .all(req.params.code);

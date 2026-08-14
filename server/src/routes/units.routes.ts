@@ -10,13 +10,13 @@ export function unitsRouter(db: AppDatabase): Router {
     const rows = propertyCode
       ? (db
           .prepare(
-            `SELECT unit_code, property_code, type, area, market_rent, resident_id
+            `SELECT unit_code, property_code, type, area, market_rent, resident_id, status
              FROM residential_units WHERE property_code = ? ORDER BY unit_code`
           )
           .all(propertyCode) as ResidentialUnit[])
       : (db
           .prepare(
-            `SELECT unit_code, property_code, type, area, market_rent, resident_id
+            `SELECT unit_code, property_code, type, area, market_rent, resident_id, status
              FROM residential_units ORDER BY property_code, unit_code`
           )
           .all() as ResidentialUnit[]);
@@ -28,7 +28,7 @@ export function unitsRouter(db: AppDatabase): Router {
     const row = propertyCode
       ? (db
           .prepare(
-            `SELECT unit_code, property_code, type, area, market_rent, resident_id
+            `SELECT unit_code, property_code, type, area, market_rent, resident_id, status
              FROM residential_units WHERE unit_code = ? AND property_code = ?`
           )
           .get(req.params.unitCode, propertyCode) as ResidentialUnit | undefined)

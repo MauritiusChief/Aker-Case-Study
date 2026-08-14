@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parseCsv } from "./csv.js";
+import type { UnitStatus } from "../types.js";
 import { RENT_ROLL_CSV_DIR } from "../config.js";
 
 export interface ParsedResident {
@@ -23,6 +24,7 @@ export interface ParsedUnit {
   area: number | null;
   market_rent: number | null;
   resident_id: string | null;
+  status: UnitStatus;
 }
 
 export interface ParsedRentRoll {
@@ -40,6 +42,25 @@ export interface ParsedRentRollFile {
 }
 
 const VACANT = "VACANT";
+
+const NON_REVENUE_STATUSES: readonly string[] = ["MODEL", "DOWN", "ADMIN"];
+
+function classifyResident(value: string | null): {
+  status: UnitStatus;
+  isVacant: boolean;
+} {
+  if (value === null || value === "") {
+    return { status: "VACANT", isVacant: true };
+  }
+  const upper = value.toUpperCase();
+  if (upper === VACANT) {
+    return { status: "VACANT", isVacant: true };
+  }
+  if (NON_REVENUE_STATUSES.includes(upper)) {
+    return { status: upper as UnitStatus, isVacant: true };
+  }
+  return { status: "OCCUPIED", isVacant: false };
+}
 
 function toNumber(value: string | undefined): number | null {
   if (value === undefined) return null;
@@ -131,7 +152,7 @@ export function parseRentRollCsv(text: string, propertyCode: string): ParsedRent
     if (unit !== null) {
       // A new unit/resident row.
       currentUnit = unit;
-      const isVacant = residentId === null || residentId === VACANT;
+      const { status, isVacant } = classifyResident(residentId);
       currentResidentId = isVacant ? null : residentId;
 
       units.push({
@@ -141,6 +162,7 @@ export function parseRentRollCsv(text: string, propertyCode: string): ParsedRent
         area,
         market_rent: marketRent,
         resident_id: currentResidentId,
+        status,
       });
 
       if (!isVacant && currentResidentId !== null) {

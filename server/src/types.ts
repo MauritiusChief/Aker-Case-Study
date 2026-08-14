@@ -3,6 +3,8 @@ export interface Property {
   name: string | null;
 }
 
+export type UnitStatus = "OCCUPIED" | "VACANT" | "MODEL" | "DOWN" | "ADMIN";
+
 export interface ResidentialUnit {
   unit_code: string;
   property_code: string;
@@ -10,6 +12,7 @@ export interface ResidentialUnit {
   area: number | null;
   market_rent: number | null;
   resident_id: string | null;
+  status: UnitStatus;
 }
 
 export interface Resident {
