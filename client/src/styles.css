@@ -193,9 +193,9 @@ body {
   color: #fff;
 }
 
-.table-scroll {
+/* .table-scroll {
   overflow-x: auto;
-}
+} */
 
 .data-table {
   width: 100%;
@@ -405,6 +405,59 @@ body {
   display: flex;
   gap: 8px;
   margin: 20px 0;
+}
+
+.info-tip {
+  position: relative;
+  display: inline-flex;
+  margin-left: 5px;
+  cursor: help;
+  vertical-align: middle;
+}
+
+.info-tip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-size: 10px;
+  font-style: italic;
+  font-weight: 700;
+  border-radius: 50%;
+  background: var(--text-muted);
+  color: #fff;
+  line-height: 1;
+  text-transform: none;
+}
+
+.info-tip-text {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: 140%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 260px;
+  background: #1f2937;
+  color: #f9fafb;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  padding: 8px 10px;
+  border-radius: 6px;
+  z-index: 20;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.info-tip:hover .info-tip-text,
+.info-tip:focus .info-tip-text {
+  visibility: visible;
+  opacity: 1;
 }
 
 @media (max-width: 960px) {

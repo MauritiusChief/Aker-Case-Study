@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import type { LeaseBucket, LeaseRiskSummary } from "../types";
 import { fetchLeaseRisks, type LeaseRiskQuery } from "../api/client";
 import { formatCurrency, formatNumber, formatPercent, toDisplayDate } from "../lib/format";
+import { InfoTip } from "../components/InfoTip";
 
 const BUCKET_LABELS: Record<LeaseBucket, string> = {
   "0_30": "0–30 days",
@@ -222,15 +223,24 @@ export function LeaseRiskPage() {
           <div className="kpi-value">{formatCurrency(metrics.total_market_rent)}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Total Loss-to-lease</div>
+          <div className="kpi-label">
+            Total Loss-to-lease
+            <InfoTip text="Sum of loss_to_lease = market_rent - scheduled_base_rent across comparable occupied units (units with missing or zero base rent are excluded)." />
+          </div>
           <div className="kpi-value">{formatCurrency(metrics.total_loss_to_lease)}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Positive Gap Units</div>
+          <div className="kpi-label">
+            Positive Gap Units
+            <InfoTip text="Occupied units whose Market Rent exceeds their Scheduled Base Rent (loss_to_lease > 0), i.e. rented below market." />
+          </div>
           <div className="kpi-value">{formatNumber(metrics.positive_loss_to_lease_count)}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Premium Units</div>
+          <div className="kpi-label">
+            Premium Units
+            <InfoTip text="Occupied units whose Market Rent is below their Scheduled Base Rent (loss_to_lease < 0), i.e. rented above market." />
+          </div>
           <div className="kpi-value">{formatNumber(metrics.premium_count)}</div>
         </div>
       </div>
@@ -274,7 +284,10 @@ export function LeaseRiskPage() {
                 <th>Move-out</th>
                 <th className="num">Market Rent</th>
                 <th className="num">Base Rent</th>
-                <th className="num">Loss-to-lease</th>
+                <th className="num">
+                  Loss-to-lease
+                  <InfoTip text="market_rent - scheduled_base_rent for each unit; blank when base rent is missing or zero." />
+                </th>
                 <th className="num">Balance</th>
                 <th>Availability</th>
               </tr>

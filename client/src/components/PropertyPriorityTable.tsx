@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { PropertyPriorityRow } from "../types";
 import { formatCurrency, formatPercent } from "../lib/format";
+import { InfoTip } from "./InfoTip";
 
 interface PropertyPriorityTableProps {
   rows: PropertyPriorityRow[];
@@ -23,7 +24,10 @@ export function PropertyPriorityTable({ rows }: PropertyPriorityTableProps) {
               <th className="num">Occ%</th>
               <th className="num">Leased%</th>
               <th className="num">Exp. 60d</th>
-              <th className="num">Vacant Unrented Exposure</th>
+              <th className="num">
+                Vacant Unrented Exposure
+                <InfoTip text="Total Market Rent of vacant_unrented units (VACANT, no future resident booked) for this property." />
+              </th>
             </tr>
           </thead>
           <tbody>

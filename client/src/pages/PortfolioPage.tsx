@@ -66,6 +66,7 @@ export function PortfolioPage() {
         <KpiCard
           label="Vacant Unrented Exposure"
           value={formatCurrency(metrics.vacant_unrented_exposure)}
+          info="Total Market Rent of vacant_unrented units: VACANT units with no future resident booked within the stale window. These are immediately rentable but not yet pre-rented."
         />
         <KpiCard
           label="Expiring in 60 Days"

@@ -1,6 +1,11 @@
 import type { AppDatabase } from "../db/index.js";
 import type { AvailabilitySummary } from "../types.js";
-import { queryAvailabilitySummaries, type AvailabilityOptions } from "./availability.js";
+import {
+  queryAvailabilitySummaries,
+  bookingCutoff,
+  BOOKED_VACANT_SQL,
+  type AvailabilityOptions,
+} from "./availability.js";
 import { isBaseRentCharge } from "./charge-codes.js";
 import { queryLeaseRiskRows } from "./lease-risk.js";
 import {
@@ -92,16 +97,18 @@ export function computePropertySummary(
     }
   }
 
+  const cutoff = bookingCutoff(options.asOfDate, options.staleDays);
   const vacantUnrentedExposure = round2(
     (
       db
         .prepare(
-          `SELECT COALESCE(SUM(market_rent), 0) AS exposure
-           FROM residential_units
-           WHERE property_code = ?
-             AND status = 'VACANT'`
+          `SELECT COALESCE(SUM(u.market_rent), 0) AS exposure
+           FROM residential_units u
+           WHERE u.property_code = @property
+             AND u.status = 'VACANT'
+             AND NOT ${BOOKED_VACANT_SQL}`
         )
-        .get(propertyCode) as { exposure: number }
+        .get({ property: propertyCode, cutoff }) as { exposure: number }
     ).exposure
   );
 
