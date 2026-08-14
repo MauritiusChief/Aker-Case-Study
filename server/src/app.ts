@@ -6,6 +6,8 @@ import { residentsRouter } from "./routes/residents.routes.js";
 import { rentRollsRouter } from "./routes/rent-rolls.routes.js";
 import { availabilityRouter } from "./routes/availability.routes.js";
 import { portfolioRouter } from "./routes/portfolio.routes.js";
+import { leaseRiskRouter } from "./routes/lease-risk.routes.js";
+import { rentGapRouter } from "./routes/rent-gap.routes.js";
 
 export function createApp(db: AppDatabase): Express {
   const app = express();
@@ -21,6 +23,8 @@ export function createApp(db: AppDatabase): Express {
   app.use("/api/rent-rolls", rentRollsRouter(db));
   app.use("/api/availability", availabilityRouter(db));
   app.use("/api/portfolio", portfolioRouter(db));
+  app.use("/api/lease-risks", leaseRiskRouter(db));
+  app.use("/api/rent-gap", rentGapRouter(db));
 
   app.use(
     (

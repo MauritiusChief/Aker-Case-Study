@@ -8,16 +8,11 @@ import {
   BOOKED_VACANT_SQL,
   type AvailabilityOptions,
 } from "./availability.js";
-import { daysBetween, isIsoDate } from "../lib/dates.js";
-export interface LeaseExpirationBuckets {
-  "0_30": number;
-  "31_60": number;
-  "61_90": number;
-  "91_180": number;
-  over_180: number;
-  expired: number;
-  missing: number;
-}
+import {
+  bucketizeLeaseEnd,
+  EMPTY_LEASE_BUCKETS,
+  type LeaseExpirationBuckets,
+} from "./lease-buckets.js";
 
 export interface PropertyPriorityRow {
   property_code: string;
@@ -59,34 +54,8 @@ interface LeaseRow {
   lease_end_date: string | null;
 }
 
-const EMPTY_BUCKETS: LeaseExpirationBuckets = {
-  "0_30": 0,
-  "31_60": 0,
-  "61_90": 0,
-  "91_180": 0,
-  over_180: 0,
-  expired: 0,
-  missing: 0,
-};
-
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
-}
-
-function bucketizeLeaseEnd(
-  asOfDate: string,
-  leaseEnd: string | null
-): keyof LeaseExpirationBuckets {
-  if (leaseEnd === null || leaseEnd === "" || !isIsoDate(leaseEnd)) {
-    return "missing";
-  }
-  const days = daysBetween(asOfDate, leaseEnd);
-  if (days < 0) return "expired";
-  if (days <= 30) return "0_30";
-  if (days <= 60) return "31_60";
-  if (days <= 90) return "61_90";
-  if (days <= 180) return "91_180";
-  return "over_180";
 }
 
 export function computePortfolioSummary(
@@ -125,7 +94,7 @@ export function computePortfolioSummary(
     )
     .all() as LeaseRow[];
 
-  const buckets: LeaseExpirationBuckets = { ...EMPTY_BUCKETS };
+  const buckets: LeaseExpirationBuckets = { ...EMPTY_LEASE_BUCKETS };
   const expiringByProperty = new Map<string, number>();
 
   for (const lease of leases) {

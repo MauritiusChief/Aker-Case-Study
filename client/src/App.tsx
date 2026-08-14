@@ -1,5 +1,7 @@
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { PortfolioPage } from "./pages/PortfolioPage";
+import { LeaseRiskPage } from "./pages/LeaseRiskPage";
+import { PropertyDetailPage } from "./pages/PropertyDetailPage";
 
 const navItems = [
   { to: "/portfolio", label: "Portfolio Overview" },
@@ -24,10 +26,8 @@ export function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/portfolio" replace />} />
           <Route path="/portfolio" element={<PortfolioPage />} />
-          <Route
-            path="/lease-risk"
-            element={<ComingSoon title="Lease Risk" />}
-          />
+          <Route path="/lease-risk" element={<LeaseRiskPage />} />
+          <Route path="/properties/:propertyCode" element={<PropertyDetailPage />} />
           <Route path="/what-if" element={<ComingSoon title="What-if" />} />
         </Routes>
       </main>
