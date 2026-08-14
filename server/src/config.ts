@@ -15,10 +15,12 @@ export const RENT_ROLL_CSV_DIR = path.join(CSV_ROOT, "rent_roll");
 
 export const UNIT_AVAILABILITY_CSV_DIR = path.join(CSV_ROOT, "unit_availability");
 
-export const DEFAULT_MONTH_YEAR = process.env.AKER_MONTH_YEAR ?? "02/2026";
+export const DEFAULT_MONTH_YEAR = process.env.AKER_MONTH_YEAR ?? "2026/02";
 
-export const AS_OF_DATE = process.env.AKER_AS_OF_DATE ?? "02/25/2026";
+export const AS_OF_DATE = process.env.AKER_AS_OF_DATE ?? "2026/02/25";
 
 export const BOOKING_STALE_DAYS = Number(process.env.AKER_BOOKING_STALE_DAYS ?? 90);
 
 export const PORT = Number(process.env.PORT ?? 3000);
+
+export const LLM_MODEL = process.env.AKER_LLM_MODEL ?? "deepseek-v4-flash";

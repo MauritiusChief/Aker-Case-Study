@@ -1,8 +1,9 @@
 import { createConnection, createSchema } from "../db/index.js";
-import { DEFAULT_MONTH_YEAR, DB_PATH } from "../config.js";
+import { AS_OF_DATE, BOOKING_STALE_DAYS, DEFAULT_MONTH_YEAR, DB_PATH } from "../config.js";
 import { readRentRollFiles } from "./rent-roll.js";
 import { readUnitAvailabilityFiles } from "./unit-availability.js";
 import { seedDatabase } from "./populate.js";
+import { runDataQualityChecks } from "../analysis/quality.js";
 
 function main(): void {
   const monthYear = parseMonthYearArg(process.argv.slice(2), DEFAULT_MONTH_YEAR);
@@ -51,6 +52,31 @@ function main(): void {
   console.log(
     `Done. units=${unitCount.c}, residents=${residentCount.c}, rent_rolls=${rentRollCount.c}`
   );
+
+  console.log(`Running data quality report...`);
+  const issues = runDataQualityChecks(db, {
+    asOfDate: AS_OF_DATE,
+    staleDays: BOOKING_STALE_DAYS,
+  });
+  const errorCount = issues.filter((i) => i.severity === "error").length;
+  const warningCount = issues.filter((i) => i.severity === "warning").length;
+  console.log(
+    `Data quality: ${errorCount} error(s), ${warningCount} warning(s)`
+  );
+  for (const issue of issues) {
+    const scope = [
+      issue.property_code,
+      issue.unit_code,
+      issue.resident_id,
+    ]
+      .filter(Boolean)
+      .map((v) => String(v))
+      .join(" / ");
+    console.log(
+      `  [${issue.severity.toUpperCase()}] ${issue.code}${scope ? ` (${scope})` : ""}: ${issue.message}`
+    );
+  }
+
   db.close();
 }
 

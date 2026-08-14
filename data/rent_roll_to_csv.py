@@ -34,9 +34,9 @@ FILENAME_PREFIX = "ResAnalytics_Rent_Roll_with_Lease_Charges_"
 def csv_value(value):
     """Serialize Excel values without otherwise changing the data."""
     if isinstance(value, datetime):
-        return value.strftime("%m/%d/%Y")
+        return value.strftime("%Y/%m/%d")
     if isinstance(value, date):
-        return value.strftime("%m/%d/%Y")
+        return value.strftime("%Y/%m/%d")
     return value
 
 
