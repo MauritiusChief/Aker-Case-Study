@@ -22,10 +22,42 @@ function json(value: unknown): string {
   return escapeHtml(serialized === undefined ? "undefined" : serialized);
 }
 
+function jsonString(value: unknown): string {
+  if (typeof value !== "string") {
+    return escapeHtml(value === null ? "null" : value ?? "");
+  }
+  try {
+    return json(JSON.parse(value));
+  } catch {
+    return escapeHtml(value);
+  }
+}
+
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
+}
+
+function renderToolCalls(value: unknown): string {
+  if (!Array.isArray(value)) return `<pre>${json(value)}</pre>`;
+  return value.map((item, index) => {
+    const call = record(item);
+    const fn = record(call?.function);
+    if (!call || !fn || typeof fn.arguments !== "string") {
+      return `<article><h4>Tool call ${index + 1}</h4><pre>${json(item)}</pre></article>`;
+    }
+
+    const details = { ...call, function: { ...fn } };
+    delete details.function.arguments;
+    const name = typeof fn.name === "string" ? `: ${fn.name}` : "";
+    return `<article>
+<h4>Tool call ${index + 1}${escapeHtml(name)}</h4>
+<pre>${json(details)}</pre>
+<h5>Arguments</h5>
+<pre>${jsonString(fn.arguments)}</pre>
+</article>`;
+  }).join("\n");
 }
 
 function document(title: string, body: string): string {
@@ -35,6 +67,7 @@ function document(title: string, body: string): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>
+  <style>pre { white-space: pre-wrap; overflow-wrap: anywhere; }</style>
 </head>
 <body>
 ${body}
@@ -89,9 +122,12 @@ function renderMessages(request: Record<string, unknown> | null): string {
     const details = { ...message };
     delete details.role;
     delete details.content;
+    const toolCalls = details.tool_calls;
+    delete details.tool_calls;
     return `<article>
 <h3>Message ${index + 1}: ${escapeHtml(role)}</h3>
-<pre>${escapeHtml(message.content === null ? "null" : message.content ?? "")}</pre>
+<pre>${jsonString(message.content)}</pre>
+${toolCalls === undefined ? "" : `<h4>Tool calls</h4>${renderToolCalls(toolCalls)}`}
 ${Object.keys(details).length > 0 ? `<details><summary>Message fields</summary><pre>${json(details)}</pre></details>` : ""}
 </article>`;
   }).join("\n");
@@ -111,9 +147,9 @@ function renderResponse(trace: LlmTrace): string {
   const message = record(firstChoice?.message);
   const readable = message
     ? `<h3>Assistant content</h3>
-<pre>${escapeHtml(message.content === null ? "null" : message.content ?? "")}</pre>
+<pre>${jsonString(message.content)}</pre>
 ${message.reasoning_content === undefined ? "" : `<h3>Reasoning content</h3><pre>${escapeHtml(message.reasoning_content)}</pre>`}
-${message.tool_calls === undefined ? "" : `<h3>Tool calls</h3><pre>${json(message.tool_calls)}</pre>`}
+${message.tool_calls === undefined ? "" : `<h3>Tool calls</h3>${renderToolCalls(message.tool_calls)}`}
 ${firstChoice?.finish_reason === undefined ? "" : `<p>Finish reason: ${escapeHtml(firstChoice.finish_reason)}</p>`}
 ${body?.usage === undefined ? "" : `<h3>Usage</h3><pre>${json(body.usage)}</pre>`}`
     : "<p>No readable assistant message found.</p>";

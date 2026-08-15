@@ -132,6 +132,64 @@ test("trace viewer renders readable fields and escapes recorded content", () => 
   assert.match(list, new RegExp(`/api/debug/llm-traces/${trace.traceId}`));
 });
 
+test("trace viewer beautifies JSON content and tool arguments", () => {
+  const trace = sampleTrace({
+    request: {
+      model: "test-model",
+      messages: [
+        {
+          role: "assistant",
+          content: '{"draft":{"count":1}}',
+          tool_calls: [{
+            id: "request-call",
+            type: "function",
+            function: {
+              name: "lookup",
+              arguments: '{"property_code":"P1","filters":{"status":"available"}}',
+            },
+          }],
+        },
+        { role: "user", content: "{not-json" },
+      ],
+    },
+    response: {
+      httpStatus: 200,
+      body: {
+        choices: [{
+          message: {
+            content: '{"answer":"ok","citations":[]}',
+            tool_calls: [{
+              id: "response-call",
+              type: "function",
+              function: { name: "lookup", arguments: '{"property_code":"P2"}' },
+            }],
+          },
+          finish_reason: "tool_calls",
+        }],
+      },
+    },
+  });
+
+  const detail = renderTraceDetail(
+    { trace, raw: JSON.stringify(trace), parseError: null },
+    trace.traceId
+  );
+  assert.ok(detail.includes(
+    '<pre>{\n  &quot;draft&quot;: {\n    &quot;count&quot;: 1\n  }\n}</pre>'
+  ));
+  assert.ok(detail.includes(
+    '<pre>{\n  &quot;answer&quot;: &quot;ok&quot;,\n  &quot;citations&quot;: []\n}</pre>'
+  ));
+  assert.ok(detail.includes(
+    '<pre>{\n  &quot;property_code&quot;: &quot;P1&quot;,\n  &quot;filters&quot;: {\n    &quot;status&quot;: &quot;available&quot;\n  }\n}</pre>'
+  ));
+  assert.ok(detail.includes(
+    '<pre>{\n  &quot;property_code&quot;: &quot;P2&quot;\n}</pre>'
+  ));
+  assert.match(detail, /<pre>\{not-json<\/pre>/);
+  assert.match(detail, /white-space: pre-wrap/);
+});
+
 test("trace viewer serves list and detail pages over HTTP", async (t) => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "aker-llm-traces-"));
   t.after(() => rm(directory, { recursive: true, force: true }));

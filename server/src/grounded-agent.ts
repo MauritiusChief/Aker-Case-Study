@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { stringify as stringifyYaml } from "yaml";
 import {
   LlmError,
   type AgentSecurityEvent,
@@ -60,12 +61,16 @@ function parseArgumentsObject(argumentsJson: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function yaml(value: unknown): string {
+  return stringifyYaml(value).trimEnd();
+}
+
 function budgetContent(
   remainingToolCalls: number,
   remainingToolRounds: number,
   totalToolCalls: number
 ): string {
-  return JSON.stringify({
+  return yaml({
     source: "application_control",
     remaining_tool_calls: remainingToolCalls,
     remaining_tool_rounds: remainingToolRounds,
@@ -99,9 +104,9 @@ export async function runGroundedAgent(
     { role: "system", content: systemPrompt },
     {
       role: "user",
-      content: `${task}\n\nInitial citable source brief_facts:\n${JSON.stringify(facts)}${
+      content: `${task}\n\nInitial citable source brief_facts:\n${yaml(facts)}${
         Object.keys(extraContext).length
-          ? `\n\nAdditional non-citable context:\n${JSON.stringify(extraContext)}`
+          ? `\n\nAdditional non-citable context:\n${yaml(extraContext)}`
           : ""
       }`,
     },
@@ -326,7 +331,7 @@ export async function runGroundedAgent(
       messages.push({
         role: "tool",
         tool_call_id: call.id,
-        content: `Source id: ${sourceId}\nSource value (citation paths are relative to this value):\n${JSON.stringify(result)}`,
+        content: `Source id: ${sourceId}\nSource value (citation paths are relative to this value):\n${yaml(result)}`,
       });
       debugLog(
         "tool executed",

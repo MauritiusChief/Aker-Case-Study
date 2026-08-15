@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { parse as parseYaml } from "yaml";
 import {
   runGroundedAgent,
   type GroundedAgentConfig,
@@ -95,7 +96,8 @@ function run(
   responses: ModelMessage[],
   tools: ModelTool[],
   config: GroundedAgentConfig = defaultConfig,
-  executeTool: (name: AssistantToolName) => unknown = () => ({ ok: true })
+  executeTool: (name: AssistantToolName) => unknown = () => ({ ok: true }),
+  extraContext: Record<string, unknown> = {}
 ) {
   const model = new RecordingModel(responses);
   return {
@@ -107,6 +109,7 @@ function run(
       facts,
       tools,
       executeTool: (name) => executeTool(name),
+      extraContext,
       config,
     }),
   };
@@ -116,11 +119,45 @@ function budgetToolMessages(messages: ModelMessage[]): Array<Record<string, unkn
   const result: Array<Record<string, unknown>> = [];
   for (const message of messages) {
     if (message.role === "tool" && message.tool_call_id?.startsWith("_budget_info")) {
-      result.push(JSON.parse(message.content as string) as Record<string, unknown>);
+      result.push(parseYaml(message.content as string) as Record<string, unknown>);
     }
   }
   return result;
 }
+
+test("serializes structured model inputs as YAML and keeps tool arguments as JSON", async () => {
+  const argumentsJson = '{"property_code":"P1"}';
+  const { model, promise } = run(
+    [call("c1", "get_availability", argumentsJson), content("final")],
+    [availabilityTool],
+    defaultConfig,
+    () => ({ available: 2, labels: ["ready", "vacant"] }),
+    { note: "line one\nline two" }
+  );
+  await promise;
+
+  const initialContent = model.requests[0].messages[1].content as string;
+  assert.match(initialContent, /Initial citable source brief_facts:\nas_of_date: 2026\/02\/25/);
+  assert.match(initialContent, /Additional non-citable context:\nnote: \|-/);
+  assert.doesNotMatch(initialContent, /"as_of_date":/);
+
+  const nextMessages = model.requests[1].messages;
+  const assistantCall = nextMessages.find((message) =>
+    message.role === "assistant" && message.tool_calls?.some((toolCall) => toolCall.id === "c1")
+  );
+  const preservedArguments = assistantCall?.tool_calls?.find((toolCall) => toolCall.id === "c1");
+  assert.equal(preservedArguments?.function.arguments, argumentsJson);
+
+  const toolResult = nextMessages.find((message) => message.tool_call_id === "c1");
+  assert.match(toolResult?.content ?? "", /Source value .*:\navailable: 2\nlabels:\n  - ready\n  - vacant/);
+  assert.doesNotMatch(toolResult?.content ?? "", /"available":/);
+
+  const budgetResult = nextMessages.find((message) =>
+    message.role === "tool" && message.tool_call_id?.startsWith("_budget_info")
+  );
+  assert.match(budgetResult?.content ?? "", /^source: application_control\n/);
+  assert.equal(parseYaml(budgetResult?.content as string).remaining_tool_calls, 7);
+});
 
 function budgetCallIds(messages: ModelMessage[]): string[] {
   const ids: string[] = [];
