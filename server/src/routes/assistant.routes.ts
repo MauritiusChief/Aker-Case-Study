@@ -38,6 +38,7 @@ function sendError(res: Response, error: unknown): void {
       llm_timeout: 504,
       llm_provider_error: 502,
       llm_invalid_response: 502,
+      llm_investigation_limit: 502,
     };
     res.status(statuses[error.code]).json({
       error: { code: error.code, message: error.message },

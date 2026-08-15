@@ -4,7 +4,8 @@ export type LlmErrorCode =
   | "llm_rate_limited"
   | "llm_timeout"
   | "llm_provider_error"
-  | "llm_invalid_response";
+  | "llm_invalid_response"
+  | "llm_investigation_limit";
 
 export class LlmError extends Error {
   constructor(
@@ -31,7 +32,22 @@ export interface ModelMessage {
   content: string | null;
   tool_call_id?: string;
   tool_calls?: ModelToolCall[];
+  finish_reason?: string;
 }
+
+/** Real business tools the assistant is allowed to call. */
+export type AssistantToolName =
+  | "get_property_summary"
+  | "get_portfolio_comparison"
+  | "get_availability"
+  | "get_lease_risk"
+  | "get_rent_gap"
+  | "get_data_quality";
+
+/** Reserved control tool used for application-injected budget updates. */
+export type ReservedControlToolName = "_budget_info";
+
+export type MessageToolName = AssistantToolName | ReservedControlToolName;
 
 export interface ModelTool {
   type: "function";
@@ -178,3 +194,15 @@ export interface BriefFacts {
   candidates: BriefCandidate[];
   limitations: string[];
 }
+
+export interface AgentInvestigationState {
+  modelAttempts: number;
+  toolRounds: number;
+  realToolCalls: number;
+}
+
+export type AgentSecurityEvent =
+  | { type: "budget_info_hallucination"; count: number }
+  | { type: "unknown_tool"; name: string }
+  | { type: "duplicate_tool_call_id"; id: string }
+  | { type: "budget_exceeded"; requested: number; remaining: number };

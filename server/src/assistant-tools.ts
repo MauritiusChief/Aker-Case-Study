@@ -7,19 +7,29 @@ import { computeLeaseRiskSummary, LEASE_BUCKETS } from "./analysis/lease-risk.js
 import { computeRentGapSummary } from "./analysis/rent-gap.js";
 import { runDataQualityChecks } from "./analysis/quality.js";
 import { summarizeDataQuality } from "./brief-facts.js";
-import type { BriefFacts, ModelTool } from "./assistant-types.js";
+import type {
+  AssistantToolName,
+  BriefFacts,
+  ModelTool,
+} from "./assistant-types.js";
 
-export const ASSISTANT_TOOL_NAMES = [
+export const ASSISTANT_TOOL_NAMES: readonly AssistantToolName[] = [
   "get_property_summary",
   "get_portfolio_comparison",
   "get_availability",
   "get_lease_risk",
   "get_rent_gap",
   "get_data_quality",
-] as const;
+];
 
-export type AssistantToolName = (typeof ASSISTANT_TOOL_NAMES)[number];
-export type ToolExecutor = (name: string, argumentsJson: string) => unknown;
+export function isAssistantToolName(name: string): name is AssistantToolName {
+  return (ASSISTANT_TOOL_NAMES as readonly string[]).includes(name);
+}
+
+export type ToolExecutor = (
+  name: AssistantToolName,
+  argumentsJson: string
+) => unknown;
 export type ToolScope = "candidate" | "portfolio";
 
 function propertySchema(candidateCodes: string[]): Record<string, unknown> {
@@ -157,7 +167,7 @@ export function createToolExecutor(
 ): ToolExecutor {
   const allowedCodes = allowedPropertyCodes(facts, scope);
   return (name, argumentsJson) => {
-    if (!(ASSISTANT_TOOL_NAMES as readonly string[]).includes(name)) {
+    if (!isAssistantToolName(name)) {
       throw new Error(`Unknown tool: ${name}`);
     }
     const args = parseObject(argumentsJson);

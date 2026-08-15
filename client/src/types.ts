@@ -436,7 +436,8 @@ export type MorningBriefErrorCode =
   | "RATE_LIMITED"
   | "TIMEOUT"
   | "PROVIDER_UNAVAILABLE"
-  | "INVALID_RESPONSE";
+  | "INVALID_RESPONSE"
+  | "INVESTIGATION_LIMIT";
 
 export interface StructuredApiError {
   code: MorningBriefErrorCode;

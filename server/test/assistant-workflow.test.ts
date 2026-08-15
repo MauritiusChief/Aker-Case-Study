@@ -169,3 +169,82 @@ test("Q&A uses prior brief context and returns validated widget changes", async 
   assert.equal(result.widget_operations[0]?.op, "upsert");
   assert.equal(result.widgets[0]?.id, "availability-p1");
 });
+
+test("four consecutive investigation rounds still produce a validated brief", async () => {
+  const toolRound = (id: string): ModelMessage => ({
+    role: "assistant",
+    content: null,
+    tool_calls: [
+      {
+        id,
+        type: "function",
+        function: { name: "get_availability", arguments: "{}" },
+      },
+    ],
+  });
+  const model = new FakeModel([
+    toolRound("c1"),
+    toolRound("c2"),
+    toolRound("c3"),
+    toolRound("c4"),
+    {
+      role: "assistant",
+      content: JSON.stringify({
+        findings: [
+          {
+            id: "availability",
+            title: "Availability requires attention",
+            summary: "Two units are available.",
+            priority: "high",
+            property_codes: ["P1"],
+            evidence: [{ source_id: "tool_4", path: "/portfolio/available_units" }],
+          },
+        ],
+        widget_operations: [],
+        widgets: [],
+      }),
+    },
+  ]);
+  const result = await generateMorningBrief(model, facts, () => ({
+    portfolio: { available_units: 2 },
+  }));
+  assert.equal(result.findings.length, 1);
+  assert.equal(result.investigation.tool_calls, 4);
+});
+
+test("citations to the injected _budget_info source are rejected", async () => {
+  const model = new FakeModel([
+    {
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        {
+          id: "c1",
+          type: "function",
+          function: { name: "get_availability", arguments: "{}" },
+        },
+      ],
+    },
+    {
+      role: "assistant",
+      content: JSON.stringify({
+        findings: [
+          {
+            id: "bad-budget",
+            title: "Budget citation",
+            summary: "Unsupported.",
+            priority: "high",
+            property_codes: ["P1"],
+            evidence: [{ source_id: "_budget_info", path: "/remaining_tool_calls" }],
+          },
+        ],
+        widget_operations: [],
+        widgets: [],
+      }),
+    },
+  ]);
+  await assert.rejects(
+    generateMorningBrief(model, facts, () => ({ portfolio: { available_units: 2 } })),
+    (error: unknown) => error instanceof LlmError && error.code === "llm_invalid_response"
+  );
+});

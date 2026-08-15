@@ -353,6 +353,7 @@ function normalizeErrorCode(value: unknown, status: number): MorningBriefErrorCo
   if (["RATE_LIMITED", "RATE_LIMIT", "TOO_MANY_REQUESTS", "LLM_RATE_LIMITED"].includes(code)) return "RATE_LIMITED";
   if (["TIMEOUT", "REQUEST_TIMEOUT", "PROVIDER_TIMEOUT", "LLM_TIMEOUT"].includes(code)) return "TIMEOUT";
   if (["INVALID_RESPONSE", "INVALID_REQUEST", "LLM_INVALID_RESPONSE"].includes(code)) return "INVALID_RESPONSE";
+  if (["INVESTIGATION_LIMIT", "LLM_INVESTIGATION_LIMIT"].includes(code)) return "INVESTIGATION_LIMIT";
   if (["PROVIDER_UNAVAILABLE", "PROVIDER_ERROR", "UPSTREAM_ERROR", "LLM_PROVIDER_ERROR"].includes(code)) return "PROVIDER_UNAVAILABLE";
   return errorCodeForStatus(status);
 }

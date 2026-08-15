@@ -34,3 +34,5 @@ export const DEEPSEEK_BASE_URL =
   process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com";
 
 export const LLM_TIMEOUT_MS = Number(process.env.AKER_LLM_TIMEOUT_MS ?? 30_000);
+
+export const AKER_LLM_DEBUG = process.env.AKER_LLM_DEBUG === "true";

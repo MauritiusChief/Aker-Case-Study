@@ -73,6 +73,10 @@ const ERROR_COPY: Record<MorningBriefErrorCode, { title: string; message: string
     title: "The provider returned an invalid response",
     message: "The response did not match the closed Morning Brief data contract and was not applied.",
   },
+  INVESTIGATION_LIMIT: {
+    title: "The investigation exceeded its budget",
+    message: "The model did not finish within the investigation tool budget. Existing workspace content is unchanged.",
+  },
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

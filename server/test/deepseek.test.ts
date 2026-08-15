@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DeepSeekChatModel } from "../src/deepseek.js";
-import { LlmError, type ModelRequest } from "../src/assistant-types.js";
+import { LlmError, type ModelRequest, type ModelTool } from "../src/assistant-types.js";
 
 const request: ModelRequest = {
   messages: [{ role: "user", content: "test" }],
@@ -9,8 +9,20 @@ const request: ModelRequest = {
   jsonMode: true,
 };
 
+const sampleTool: ModelTool = {
+  type: "function",
+  function: { name: "get_availability", description: "read availability", parameters: {} },
+};
+
 function errorCode(code: string) {
   return (error: unknown) => error instanceof LlmError && error.code === code;
+}
+
+function okResponse() {
+  return new Response(
+    JSON.stringify({ choices: [{ message: { content: "ok" }, finish_reason: "stop" }] }),
+    { status: 200, headers: { "content-type": "application/json" } }
+  );
 }
 
 test("DeepSeek reports missing configuration without making a request", async () => {
@@ -55,4 +67,45 @@ test("DeepSeek aborts requests at the configured timeout", async () => {
       }),
   });
   await assert.rejects(model.complete(request), errorCode("llm_timeout"));
+});
+
+test("DeepSeek omits tools and tool_choice from the body when no tools are provided", async () => {
+  let body: Record<string, unknown> = {};
+  const model = new DeepSeekChatModel({
+    apiKey: "test",
+    fetchImpl: async (_input, init) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return okResponse();
+    },
+  });
+  await model.complete(request);
+  assert.ok(!("tools" in body));
+  assert.ok(!("tool_choice" in body));
+});
+
+test("DeepSeek includes tools and tool_choice auto when tools are provided", async () => {
+  let body: Record<string, unknown> = {};
+  const model = new DeepSeekChatModel({
+    apiKey: "test",
+    fetchImpl: async (_input, init) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return okResponse();
+    },
+  });
+  await model.complete({ ...request, tools: [sampleTool] });
+  assert.deepEqual(body.tools, [sampleTool]);
+  assert.equal(body.tool_choice, "auto");
+});
+
+test("DeepSeek preserves finish_reason from the provider payload", async () => {
+  const model = new DeepSeekChatModel({
+    apiKey: "test",
+    fetchImpl: async () =>
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: "ok" }, finish_reason: "tool_calls" }] }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      ),
+  });
+  const message = await model.complete(request);
+  assert.equal(message.finish_reason, "tool_calls");
 });

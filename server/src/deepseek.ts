@@ -37,7 +37,10 @@ function parseMessage(payload: unknown): ModelMessage {
     throw new LlmError("llm_invalid_response", "DeepSeek returned no assistant message");
   }
   const body = payload as {
-    choices?: { message?: { content?: unknown; tool_calls?: unknown } }[];
+    choices?: {
+      finish_reason?: string | null;
+      message?: { content?: unknown; tool_calls?: unknown };
+    }[];
   };
   const message = body.choices?.[0]?.message;
   if (!message) {
@@ -51,10 +54,12 @@ function parseMessage(payload: unknown): ModelMessage {
       throw new LlmError("llm_invalid_response", "DeepSeek returned invalid tool calls");
     }
   }
+  const finishReason = body.choices?.[0]?.finish_reason;
   return {
     role: "assistant",
     content: typeof message.content === "string" ? message.content : null,
     tool_calls: message.tool_calls as ModelToolCall[] | undefined,
+    ...(typeof finishReason === "string" ? { finish_reason: finishReason } : {}),
   };
 }
 
@@ -91,20 +96,23 @@ export class DeepSeekChatModel implements ChatModel {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     let response: Response;
     try {
+      const body: Record<string, unknown> = {
+        model: this.name,
+        messages: request.messages,
+        response_format: request.jsonMode ? { type: "json_object" } : undefined,
+        temperature: 0.1,
+      };
+      if (request.tools.length > 0) {
+        body.tools = request.tools;
+        body.tool_choice = "auto";
+      }
       response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           authorization: `Bearer ${this.apiKey}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({
-          model: this.name,
-          messages: request.messages,
-          tools: request.tools,
-          tool_choice: "auto",
-          response_format: request.jsonMode ? { type: "json_object" } : undefined,
-          temperature: 0.1,
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
     } catch (error) {

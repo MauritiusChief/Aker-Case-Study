@@ -36,6 +36,8 @@ npm run dev
 
 The server loads `server/.env` through `dotenv`. The file is ignored by Git; only `.env.example` is committed. `AKER_LLM_TIMEOUT_MS` optionally controls the provider timeout and defaults to `30000`. The application does not generate template content when DeepSeek is unavailable; the Morning Brief page reports the specific provider error instead.
 
+The assistant loop separates model attempts, real tool rounds, and real tool calls (at most 4 rounds and 8 real calls), then issues one final tool-less request to produce the JSON summary. The system prompt is built once per run and never changes between requests. After each tool round the application injects a reserved `_budget_info` tool-result pair describing the remaining budget; this reserved tool is never registered in the tool schema and can never be cited or executed. Set `AKER_LLM_DEBUG=true` to log safe metadata (provider, phase, model attempt, tool round, finish reason, remaining budget, source ids and durations) without API keys, prompts, or business data.
+
 Start the client in another terminal:
 
 ```powershell
