@@ -8,8 +8,11 @@ import { availabilityRouter } from "./routes/availability.routes.js";
 import { portfolioRouter } from "./routes/portfolio.routes.js";
 import { leaseRiskRouter } from "./routes/lease-risk.routes.js";
 import { rentGapRouter } from "./routes/rent-gap.routes.js";
+import { assistantRouter, morningBriefRouter } from "./routes/assistant.routes.js";
+import { DeepSeekChatModel } from "./deepseek.js";
+import type { ChatModel } from "./assistant-types.js";
 
-export function createApp(db: AppDatabase): Express {
+export function createApp(db: AppDatabase, model: ChatModel = new DeepSeekChatModel()): Express {
   const app = express();
   app.use(express.json());
 
@@ -25,6 +28,8 @@ export function createApp(db: AppDatabase): Express {
   app.use("/api/portfolio", portfolioRouter(db));
   app.use("/api/lease-risks", leaseRiskRouter(db));
   app.use("/api/rent-gap", rentGapRouter(db));
+  app.use("/api/morning-brief", morningBriefRouter(db, model));
+  app.use("/api/assistant", assistantRouter(db, model));
 
   app.use(
     (

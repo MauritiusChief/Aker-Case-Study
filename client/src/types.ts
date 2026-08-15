@@ -208,3 +208,237 @@ export interface PropertySummary {
   coverage: Record<string, number>;
   data_quality: DataQualityIssue[];
 }
+
+export type MorningBriefFindingPriority = "critical" | "high" | "medium" | "low";
+
+export interface MorningBriefSourceCitation {
+  source_id: string;
+  path: string;
+}
+
+export interface MorningBriefFinding {
+  id: string;
+  title: string;
+  summary: string;
+  priority: MorningBriefFindingPriority;
+  property_codes: string[];
+  evidence: MorningBriefSourceCitation[];
+  recommended_action?: string;
+}
+
+export interface MorningBriefContent {
+  as_of_date: string;
+  month_year: string;
+  model: string;
+  facts: MorningBriefFacts;
+  findings: MorningBriefFinding[];
+  semantic_widgets: MorningBriefSemanticWidget[];
+}
+
+export interface MorningBriefCandidate {
+  property_code: string;
+  property_name: string | null;
+  selected_for: string[];
+  signals: Record<string, number | undefined>;
+  metrics: {
+    total_units: number;
+    available_units: number;
+    vacant_unrented: number;
+    notice_unrented: number;
+    down_units: number;
+    occupancy_pct: number;
+    leased_pct: number;
+    vacant_unrented_exposure: number;
+    expiring_60: number;
+    total_loss_to_lease: number | null;
+    comparable_units: number;
+  };
+}
+
+export interface MorningBriefFacts {
+  as_of_date: string;
+  month_year: string;
+  scope: {
+    kind: string;
+    candidate_property_codes: string[];
+    portfolio_property_codes: string[];
+  };
+  portfolio: {
+    total_properties: number;
+    total_units: number;
+    physical_occupancy_pct: number;
+    leased_pct: number;
+    available_units: number;
+    vacant_unrented_exposure: number;
+    expiring_60_days: number;
+    total_loss_to_lease: number;
+    positive_loss_to_lease_count: number;
+  };
+  coverage: Record<string, number>;
+  data_quality: {
+    error_count: number;
+    warning_count: number;
+    by_code: Array<{ code: string; severity: QualitySeverity; count: number }>;
+  };
+  properties: MorningBriefCandidate[];
+  candidates: MorningBriefCandidate[];
+  limitations: string[];
+}
+
+export type MorningBriefSemanticWidgetType =
+  | "kpi"
+  | "property_comparison"
+  | "availability"
+  | "lease_expirations"
+  | "rent_gap"
+  | "data_quality";
+
+export interface MorningBriefSemanticWidget {
+  id: string;
+  type: MorningBriefSemanticWidgetType;
+  title: string;
+  scope: { level: "portfolio" | "property" | "comparison"; property_codes: string[] };
+  source_ids: string[];
+  filters?: { lease_bucket?: string };
+}
+
+export interface MorningBriefSnapshot {
+  id: string;
+  as_of_date: string;
+  captured_at: string;
+}
+
+interface MorningBriefWidgetBase {
+  id: string;
+  title: string;
+  subtitle?: string;
+  pinned: boolean;
+}
+
+export interface PortfolioKpisWidget extends MorningBriefWidgetBase {
+  type: "portfolio_kpis";
+  data: {
+    items: Array<{
+      label: string;
+      value: number;
+      format: "number" | "currency" | "percent";
+      hint?: string;
+    }>;
+  };
+}
+
+export interface PropertyRankingWidget extends MorningBriefWidgetBase {
+  type: "property_ranking";
+  data: { rows: PropertyPriorityRow[] };
+}
+
+export interface AvailabilityBreakdownWidget extends MorningBriefWidgetBase {
+  type: "availability_breakdown";
+  data: {
+    rows: Array<{
+      property_code: string;
+      property_name: string | null;
+      total_units: number;
+      available_units: number;
+      occupancy_pct: number;
+      notice_unrented: number;
+      down_units: number;
+    }>;
+  };
+}
+
+export interface LeaseExpirationWidget extends MorningBriefWidgetBase {
+  type: "lease_expiration";
+  data: { rows: Array<{ property_code: string; property_name: string | null; expiring_60: number }> };
+}
+
+export interface RentGapRankingWidget extends MorningBriefWidgetBase {
+  type: "rent_gap_ranking";
+  data: {
+    rows: Array<{
+      property_code: string;
+      property_name: string | null;
+      comparable_units: number;
+      total_loss_to_lease: number | null;
+    }>;
+  };
+}
+
+export interface DataQualityWidget extends MorningBriefWidgetBase {
+  type: "data_quality";
+  data: {
+    error_count: number;
+    warning_count: number;
+    by_code: Array<{ code: string; severity: QualitySeverity; count: number }>;
+    limitations: string[];
+  };
+}
+
+export type MorningBriefWidget =
+  | PortfolioKpisWidget
+  | PropertyRankingWidget
+  | AvailabilityBreakdownWidget
+  | LeaseExpirationWidget
+  | RentGapRankingWidget
+  | DataQualityWidget;
+
+export type MorningBriefWidgetType = MorningBriefWidget["type"];
+
+export interface MorningBriefGenerateRequest {
+  base_revision: number;
+  snapshot?: MorningBriefSnapshot;
+}
+
+export interface MorningBriefGenerateResponse {
+  brief: MorningBriefContent;
+  widgets: MorningBriefWidget[];
+  snapshot: MorningBriefSnapshot;
+  revision: number;
+}
+
+export interface MorningBriefChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
+export type MorningBriefWidgetOperation =
+  | { operation: "upsert"; widget: MorningBriefWidget }
+  | { operation: "delete"; widget_id: string };
+
+export interface MorningBriefWidgetTransaction {
+  base_revision: number;
+  operations: MorningBriefWidgetOperation[];
+}
+
+export interface MorningBriefAssistantRequest {
+  question: string;
+  recent_chat: MorningBriefChatMessage[];
+  brief: MorningBriefContent;
+  widgets: MorningBriefWidget[];
+  snapshot: MorningBriefSnapshot;
+  revision: number;
+}
+
+export interface MorningBriefAssistantResponse {
+  answer: string;
+  snapshot: MorningBriefSnapshot;
+  revision: number;
+  widget_transaction?: MorningBriefWidgetTransaction;
+  widget_state?: MorningBriefWidget[];
+  semantic_widgets: MorningBriefSemanticWidget[];
+}
+
+export type MorningBriefErrorCode =
+  | "NOT_CONFIGURED"
+  | "AUTH_REQUIRED"
+  | "RATE_LIMITED"
+  | "TIMEOUT"
+  | "PROVIDER_UNAVAILABLE"
+  | "INVALID_RESPONSE";
+
+export interface StructuredApiError {
+  code: MorningBriefErrorCode;
+  message: string;
+}

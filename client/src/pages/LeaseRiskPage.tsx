@@ -92,10 +92,6 @@ export function LeaseRiskPage() {
   }
 
   const { metrics } = data;
-  const whatIfParams = new URLSearchParams();
-  if (filters.property) whatIfParams.set("property", filters.property);
-  if (filters.bucket) whatIfParams.set("bucket", filters.bucket);
-
   return (
     <div className="lease-risk">
       <div className="page-header">
@@ -279,9 +275,6 @@ export function LeaseRiskPage() {
       <div className="table-card">
         <div className="card-header">
           <h3>Lease Risk Detail</h3>
-          <Link to={`/what-if?${whatIfParams.toString()}`} className="btn btn-primary">
-            Bring to What-if
-          </Link>
         </div>
         <div className="table-scroll">
           <table className="data-table">
