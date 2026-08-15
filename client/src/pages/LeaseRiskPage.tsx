@@ -238,7 +238,7 @@ export function LeaseRiskPage() {
         </div>
         <div className="kpi-card">
           <div className="kpi-label">
-            Premium Units
+            Negative Gap Units
             <InfoTip text="Occupied units whose Market Rent is below their Scheduled Base Rent (loss_to_lease < 0), i.e. rented above market." />
           </div>
           <div className="kpi-value">{formatNumber(metrics.premium_count)}</div>
