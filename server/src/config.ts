@@ -12,6 +12,8 @@ export const DATA_DIR = path.join(SERVER_ROOT, "data");
 
 export const DB_PATH = process.env.AKER_DB_PATH ?? path.join(DATA_DIR, "aker.db");
 
+export const LLM_TRACE_DIR = process.env.AKER_LLM_TRACE_DIR ?? path.join(DATA_DIR, "llm-traces");
+
 export const CSV_ROOT = path.resolve(SERVER_ROOT, "..", "data", "csv");
 
 export const RENT_ROLL_CSV_DIR = path.join(CSV_ROOT, "rent_roll");

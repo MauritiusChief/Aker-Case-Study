@@ -12,6 +12,12 @@ import {
   type ModelRequest,
   type ModelToolCall,
 } from "./assistant-types.js";
+import {
+  createTraceId,
+  type LlmTraceOutcome,
+  type LlmTraceResponse,
+  type LlmTraceWriter,
+} from "./llm-trace.js";
 
 interface DeepSeekOptions {
   apiKey?: string;
@@ -19,6 +25,7 @@ interface DeepSeekOptions {
   model?: string;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
+  traceWriter?: LlmTraceWriter;
 }
 
 function isToolCall(value: unknown): value is ModelToolCall {
@@ -33,34 +40,45 @@ function isToolCall(value: unknown): value is ModelToolCall {
   );
 }
 
-async function logProviderError(response: Response): Promise<void> {
+function logProviderError(status: number, payload?: unknown): void {
   if (!AKER_LLM_DEBUG) return;
-  try {
-    const payload: unknown = await response.json();
-    const error = payload && typeof payload === "object" && "error" in payload
-      ? (payload as { error?: unknown }).error
-      : undefined;
-    const details = error && typeof error === "object"
-      ? error as Record<string, unknown>
-      : {};
-    const message = typeof details.message === "string"
-      ? details.message.slice(0, 1_000)
-      : undefined;
+  const error = payload && typeof payload === "object" && "error" in payload
+    ? (payload as { error?: unknown }).error
+    : undefined;
+  if (!error || typeof error !== "object") {
     console.error("[deepseek] provider error", {
-      status: response.status,
-      type: typeof details.type === "string" ? details.type : undefined,
-      code: typeof details.code === "string" || typeof details.code === "number"
-        ? details.code
-        : undefined,
-      param: typeof details.param === "string" ? details.param : undefined,
-      message,
-    });
-  } catch {
-    console.error("[deepseek] provider error", {
-      status: response.status,
+      status,
       detail: "The provider error body was not valid JSON",
     });
+    return;
   }
+  const details = error as Record<string, unknown>;
+  const message = typeof details.message === "string"
+    ? details.message.slice(0, 1_000)
+    : undefined;
+  console.error("[deepseek] provider error", {
+    status,
+    type: typeof details.type === "string" ? details.type : undefined,
+    code: typeof details.code === "string" || typeof details.code === "number"
+      ? details.code
+      : undefined,
+    param: typeof details.param === "string" ? details.param : undefined,
+    message,
+  });
+}
+
+function providerError(status: number): LlmError {
+  if (status === 401 || status === 403) {
+    return new LlmError("llm_auth_failed", "DeepSeek authentication failed", status);
+  }
+  if (status === 429) {
+    return new LlmError("llm_rate_limited", "DeepSeek rate limit exceeded", status);
+  }
+  return new LlmError(
+    "llm_provider_error",
+    `DeepSeek request failed with status ${status}`,
+    status
+  );
 }
 
 function parseMessage(payload: unknown): ModelMessage {
@@ -114,6 +132,7 @@ export class DeepSeekChatModel implements ChatModel {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
+  private readonly traceWriter?: LlmTraceWriter;
 
   constructor(options: DeepSeekOptions = {}) {
     this.apiKey = options.apiKey ?? DEEPSEEK_API_KEY;
@@ -121,6 +140,7 @@ export class DeepSeekChatModel implements ChatModel {
     this.name = options.model ?? LLM_MODEL;
     this.timeoutMs = options.timeoutMs ?? LLM_TIMEOUT_MS;
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.traceWriter = options.traceWriter;
   }
 
   async complete(request: ModelRequest): Promise<ModelMessage> {
@@ -137,62 +157,138 @@ export class DeepSeekChatModel implements ChatModel {
       );
     }
 
+    const endpoint = `${this.baseUrl}/chat/completions`;
+    const body: Record<string, unknown> = {
+      model: this.name,
+      messages: request.messages,
+      response_format: request.jsonMode ? { type: "json_object" } : undefined,
+      temperature: 0.1,
+    };
+    if (request.tools.length > 0) {
+      body.tools = request.tools;
+      body.tool_choice = "auto";
+    }
+    const serializedBody = JSON.stringify(body);
+    const requestSnapshot: unknown = JSON.parse(serializedBody);
+    const traceId = createTraceId();
+    const startedAtMs = Date.now();
+    const startedAt = new Date(startedAtMs).toISOString();
+    const persistTrace = async (
+      outcome: LlmTraceOutcome,
+      capturedResponse: LlmTraceResponse | null,
+      error: unknown = null
+    ): Promise<void> => {
+      if (!this.traceWriter) return;
+      const completedAtMs = Date.now();
+      try {
+        await this.traceWriter.save({
+          schemaVersion: 1,
+          traceId,
+          provider: "deepseek",
+          endpoint,
+          startedAt,
+          completedAt: new Date(completedAtMs).toISOString(),
+          durationMs: completedAtMs - startedAtMs,
+          outcome,
+          request: requestSnapshot,
+          response: capturedResponse,
+          error: error === null
+            ? null
+            : {
+                code: error instanceof LlmError ? error.code : error instanceof Error
+                  ? error.name
+                  : "unknown_error",
+                message: error instanceof Error ? error.message : String(error),
+              },
+        });
+      } catch (traceError) {
+        console.error("[deepseek] failed to save LLM trace", traceError);
+      }
+    };
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     let response: Response;
     try {
-      const body: Record<string, unknown> = {
-        model: this.name,
-        messages: request.messages,
-        response_format: request.jsonMode ? { type: "json_object" } : undefined,
-        temperature: 0.1,
-      };
-      if (request.tools.length > 0) {
-        body.tools = request.tools;
-        body.tool_choice = "auto";
-      }
-      response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
+      response = await this.fetchImpl(endpoint, {
         method: "POST",
         headers: {
           authorization: `Bearer ${this.apiKey}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify(body),
+        body: serializedBody,
         signal: controller.signal,
       });
     } catch (error) {
       if (controller.signal.aborted) {
-        throw new LlmError("llm_timeout", "DeepSeek request timed out");
+        const mapped = new LlmError("llm_timeout", "DeepSeek request timed out");
+        await persistTrace("timeout", null, mapped);
+        throw mapped;
       }
-      throw new LlmError(
+      const mapped = new LlmError(
         "llm_provider_error",
         error instanceof Error ? error.message : "DeepSeek request failed"
       );
+      await persistTrace("network_error", null, mapped);
+      throw mapped;
     } finally {
       clearTimeout(timer);
     }
 
-    if (!response.ok) {
-      await logProviderError(response);
-      if (response.status === 401 || response.status === 403) {
-        throw new LlmError("llm_auth_failed", "DeepSeek authentication failed", response.status);
-      }
-      if (response.status === 429) {
-        throw new LlmError("llm_rate_limited", "DeepSeek rate limit exceeded", response.status);
-      }
-      throw new LlmError(
-        "llm_provider_error",
-        `DeepSeek request failed with status ${response.status}`,
-        response.status
+    let rawText: string;
+    try {
+      rawText = await response.text();
+    } catch (error) {
+      const mapped = response.ok
+        ? new LlmError("llm_invalid_response", "DeepSeek returned invalid JSON")
+        : providerError(response.status);
+      await persistTrace(
+        response.ok ? "invalid_response" : "http_error",
+        { httpStatus: response.status },
+        mapped
       );
+      throw mapped;
     }
 
     let payload: unknown;
     try {
-      payload = await response.json();
+      payload = JSON.parse(rawText);
     } catch {
-      throw new LlmError("llm_invalid_response", "DeepSeek returned invalid JSON");
+      if (!response.ok) {
+        logProviderError(response.status);
+        const mapped = providerError(response.status);
+        await persistTrace(
+          "http_error",
+          { httpStatus: response.status, rawText },
+          mapped
+        );
+        throw mapped;
+      }
+      const mapped = new LlmError("llm_invalid_response", "DeepSeek returned invalid JSON");
+      await persistTrace(
+        "invalid_json",
+        { httpStatus: response.status, rawText },
+        mapped
+      );
+      throw mapped;
     }
-    return parseMessage(payload);
+
+    const capturedResponse = { httpStatus: response.status, body: payload };
+    if (!response.ok) {
+      logProviderError(response.status, payload);
+      const mapped = providerError(response.status);
+      await persistTrace("http_error", capturedResponse, mapped);
+      throw mapped;
+    }
+
+    let message: ModelMessage;
+    try {
+      message = parseMessage(payload);
+    } catch (error) {
+      await persistTrace("invalid_response", capturedResponse, error);
+      throw error;
+    }
+    await persistTrace("success", capturedResponse);
+    return message;
   }
 }

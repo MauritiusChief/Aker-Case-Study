@@ -24,7 +24,7 @@ export interface AvailabilitySummary {
   model: number;
   down: number;
   admin: number;
-  occ_pct: number;
+  occupancy_pct: number;
   occ_w_non_rev_pct: number;
   leased_pct: number;
   occupied: number;
@@ -46,7 +46,7 @@ export interface PropertyPriorityRow {
   property_name: string | null;
   total_units: number;
   avail: number;
-  occ_pct: number;
+  occupancy_pct: number;
   leased_pct: number;
   expiring_60: number;
   vacant_unrented_exposure: number;
@@ -190,7 +190,7 @@ export interface PropertySummary {
     occupied: number;
     vacant: number;
     avail: number;
-    occ_pct: number;
+    occupancy_pct: number;
     leased_pct: number;
     vacant_unrented_exposure: number;
     expiring_60: number;

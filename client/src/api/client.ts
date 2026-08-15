@@ -159,7 +159,7 @@ function isPropertyRankingRow(value: unknown): boolean {
     isString(value.property_code) &&
     (value.property_name === null || typeof value.property_name === "string") &&
     hasNumbers(value, [
-      "total_units", "avail", "occ_pct", "leased_pct", "expiring_60",
+      "total_units", "avail", "occupancy_pct", "leased_pct", "expiring_60",
       "vacant_unrented_exposure",
     ])
   );
@@ -255,7 +255,7 @@ function toClientWidget(widget: MorningBriefSemanticWidget, facts: MorningBriefF
         property_name: candidate.property_name,
         total_units: candidate.metrics.total_units,
         avail: candidate.metrics.available_units,
-        occ_pct: candidate.metrics.occupancy_pct,
+        occupancy_pct: candidate.metrics.occupancy_pct,
         leased_pct: candidate.metrics.leased_pct,
         expiring_60: candidate.metrics.expiring_60,
         vacant_unrented_exposure: candidate.metrics.vacant_unrented_exposure,

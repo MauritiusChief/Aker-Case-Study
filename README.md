@@ -38,6 +38,10 @@ The server loads `server/.env` through `dotenv`. The file is ignored by Git; onl
 
 The assistant loop separates model attempts, real tool rounds, and real tool calls (at most 4 rounds and 8 real calls), then issues one final tool-less request to produce the JSON summary. The system prompt is built once per run and never changes between requests. After each tool round the application injects a reserved `_budget_info` tool-result pair describing the remaining budget; this reserved tool is never registered in the tool schema and can never be cited or executed. Set `AKER_LLM_DEBUG=true` to log safe metadata (provider, phase, model attempt, tool round, finish reason, remaining budget, source ids and durations) without API keys, prompts, or business data.
 
+Every DeepSeek provider exchange is saved as JSON under `server/data/llm-traces` by default. Set `AKER_LLM_TRACE_DIR` to use another directory. Unlike the safe console debug log, these files intentionally contain complete prompts, tool inputs and results, model responses, and reasoning content. They are retained until deleted manually and are ignored by Git.
+
+Open `/api/debug/llm-traces` directly to inspect the saved exchanges. The debug viewer is served by Express, has no application navigation entry, and has no authentication. During Vite development it is available at `http://localhost:5173/api/debug/llm-traces` through the existing proxy, or directly from the server at `http://localhost:3000/api/debug/llm-traces`.
+
 Start the client in another terminal:
 
 ```powershell

@@ -51,7 +51,7 @@ export interface AvailabilitySummary {
   model: number;
   down: number;
   admin: number;
-  occ_pct: number;
+  occupancy_pct: number;
   occ_w_non_rev_pct: number;
   leased_pct: number;
   occupied: number;

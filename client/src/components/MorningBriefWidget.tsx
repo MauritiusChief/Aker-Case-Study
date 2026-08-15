@@ -60,7 +60,7 @@ function PropertyRanking({ widget }: { widget: PropertyRankingWidget }) {
             <tr key={row.property_code}>
               <td>{row.property_name ?? row.property_code}</td>
               <td className="num">{formatNumber(row.avail)}</td>
-              <td className="num">{formatPercent(row.occ_pct)}</td>
+              <td className="num">{formatPercent(row.occupancy_pct)}</td>
               <td className="num">{formatPercent(row.leased_pct)}</td>
               <td className="num">{formatNumber(row.expiring_60)}</td>
               <td className="num">{formatCurrency(row.vacant_unrented_exposure)}</td>

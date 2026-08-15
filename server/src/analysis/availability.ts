@@ -13,7 +13,7 @@ export function bookingCutoff(asOfDate: string, staleDays: number): string {
 
 type AvailabilityRow = Omit<
   AvailabilitySummary,
-  "avail" | "occ_pct" | "occ_w_non_rev_pct" | "leased_pct" | "occupied" | "vacant"
+  "avail" | "occupancy_pct" | "occ_w_non_rev_pct" | "leased_pct" | "occupied" | "vacant"
 >;
 
 function round2(value: number): number {
@@ -97,7 +97,7 @@ export function queryAvailabilitySummaries(
       model: row.model,
       down: row.down,
       admin: row.admin,
-      occ_pct: round2(pct(occupied)),
+      occupancy_pct: round2(pct(occupied)),
       occ_w_non_rev_pct: round2(pct(occupied + row.model + row.down + row.admin)),
       leased_pct: round2(pct(totalUnits - vacantUnrented)),
       occupied,

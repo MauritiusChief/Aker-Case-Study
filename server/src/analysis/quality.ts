@@ -83,7 +83,7 @@ export function runDataQualityChecks(
     }
 
     for (const [name, value] of [
-      ["occ_pct", summary.occ_pct],
+      ["occupancy_pct", summary.occupancy_pct],
       ["occ_w_non_rev_pct", summary.occ_w_non_rev_pct],
       ["leased_pct", summary.leased_pct],
     ] as const) {

@@ -63,7 +63,7 @@ export function PropertyDetailPage() {
         </div>
         <div className="kpi-card">
           <div className="kpi-label">Physical Occupancy</div>
-          <div className="kpi-value">{formatPercent(metrics.occ_pct)}</div>
+          <div className="kpi-value">{formatPercent(metrics.occupancy_pct)}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">Leased %</div>

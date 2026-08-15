@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DeepSeekChatModel } from "../src/deepseek.js";
 import { LlmError, type ModelRequest, type ModelTool } from "../src/assistant-types.js";
+import type { LlmTrace } from "../src/llm-trace.js";
 
 const request: ModelRequest = {
   messages: [{ role: "user", content: "test" }],
@@ -114,4 +115,93 @@ test("DeepSeek preserves finish_reason from the provider payload", async () => {
   const message = await model.complete(request);
   assert.equal(message.finish_reason, "tool_calls");
   assert.equal(message.reasoning_content, "provider reasoning");
+});
+
+test("DeepSeek traces the exact provider request and response", async () => {
+  const traces: LlmTrace[] = [];
+  const providerBody = {
+    id: "response-1",
+    choices: [{
+      message: { content: null, reasoning_content: "reason", tool_calls: [] },
+      finish_reason: "stop",
+    }],
+    usage: { total_tokens: 25 },
+  };
+  const model = new DeepSeekChatModel({
+    apiKey: "test",
+    model: "trace-model",
+    traceWriter: { save: async (trace) => { traces.push(trace); } },
+    fetchImpl: async () => new Response(JSON.stringify(providerBody), { status: 200 }),
+  });
+
+  await model.complete({ ...request, tools: [sampleTool] });
+
+  assert.equal(traces.length, 1);
+  assert.equal(traces[0].outcome, "success");
+  assert.deepEqual(traces[0].request, {
+    model: "trace-model",
+    messages: request.messages,
+    response_format: { type: "json_object" },
+    temperature: 0.1,
+    tools: [sampleTool],
+    tool_choice: "auto",
+  });
+  assert.deepEqual(traces[0].response, { httpStatus: 200, body: providerBody });
+  assert.equal(traces[0].error, null);
+});
+
+test("DeepSeek traces HTTP errors, invalid JSON, and timeouts", async () => {
+  const traces: LlmTrace[] = [];
+  const traceWriter = { save: async (trace: LlmTrace) => { traces.push(trace); } };
+  const auth = new DeepSeekChatModel({
+    apiKey: "test",
+    traceWriter,
+    fetchImpl: async () => new Response(
+      JSON.stringify({ error: { message: "bad key", type: "auth" } }),
+      { status: 401 }
+    ),
+  });
+  const invalid = new DeepSeekChatModel({
+    apiKey: "test",
+    traceWriter,
+    fetchImpl: async () => new Response("not-json", { status: 200 }),
+  });
+  const timeout = new DeepSeekChatModel({
+    apiKey: "test",
+    timeoutMs: 5,
+    traceWriter,
+    fetchImpl: (_input, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+      }),
+  });
+
+  await assert.rejects(auth.complete(request), errorCode("llm_auth_failed"));
+  await assert.rejects(invalid.complete(request), errorCode("llm_invalid_response"));
+  await assert.rejects(timeout.complete(request), errorCode("llm_timeout"));
+
+  assert.equal(traces[0].outcome, "http_error");
+  assert.deepEqual(traces[0].response, {
+    httpStatus: 401,
+    body: { error: { message: "bad key", type: "auth" } },
+  });
+  assert.equal(traces[1].outcome, "invalid_json");
+  assert.deepEqual(traces[1].response, { httpStatus: 200, rawText: "not-json" });
+  assert.equal(traces[2].outcome, "timeout");
+  assert.equal(traces[2].response, null);
+});
+
+test("trace write failures do not change successful model responses", async () => {
+  const model = new DeepSeekChatModel({
+    apiKey: "test",
+    traceWriter: { save: async () => { throw new Error("disk full"); } },
+    fetchImpl: async () => okResponse(),
+  });
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    assert.equal((await model.complete(request)).content, "ok");
+  } finally {
+    console.error = originalConsoleError;
+  }
 });

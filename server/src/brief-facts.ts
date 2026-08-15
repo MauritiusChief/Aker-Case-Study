@@ -113,7 +113,7 @@ export function buildBriefFactsFromSummaries(
         vacant_unrented: availability?.vacant_unrented ?? 0,
         notice_unrented: availability?.notice_unrented ?? 0,
         down_units: availability?.down ?? 0,
-        occupancy_pct: row.occ_pct,
+        occupancy_pct: row.occupancy_pct,
         leased_pct: row.leased_pct,
         vacant_unrented_exposure: row.vacant_unrented_exposure,
         expiring_60: row.expiring_60,

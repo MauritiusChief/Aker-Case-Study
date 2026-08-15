@@ -19,7 +19,7 @@ export interface PropertyPriorityRow {
   property_name: string | null;
   total_units: number;
   avail: number;
-  occ_pct: number;
+  occupancy_pct: number;
   leased_pct: number;
   expiring_60: number;
   vacant_unrented_exposure: number;
@@ -125,7 +125,7 @@ export function computePortfolioSummary(
       property_name: summary.property_name,
       total_units: summary.total_units,
       avail: summary.avail,
-      occ_pct: summary.occ_pct,
+      occupancy_pct: summary.occupancy_pct,
       leased_pct: summary.leased_pct,
       expiring_60: expiringByProperty.get(summary.property_code) ?? 0,
       vacant_unrented_exposure:
