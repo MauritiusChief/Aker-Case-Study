@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeLossToLease, applyLeaseRiskFilters } from "../src/analysis/lease-risk.js";
+import {
+  computeLossToLease,
+  applyLeaseRiskFilters,
+  paginateLeaseRiskRows,
+} from "../src/analysis/lease-risk.js";
 import type { LeaseRiskRow } from "../src/analysis/lease-risk.js";
 
 test("computeLossToLease returns null when base rent is missing or zero", () => {
@@ -66,4 +70,18 @@ test("applyLeaseRiskFilters filters by rent gap range", () => {
   assert.equal(applyLeaseRiskFilters(rows, { rent_gap_min: 0 }).length, 1);
   assert.equal(applyLeaseRiskFilters(rows, { rent_gap_max: 0 }).length, 1);
   assert.equal(applyLeaseRiskFilters(rows, { rent_gap_min: 0, rent_gap_max: 500 }).length, 1);
+});
+
+test("paginateLeaseRiskRows returns the requested page and bounds invalid pages", () => {
+  const rows = [makeRow({ unit_code: "101" }), makeRow({ unit_code: "102" }), makeRow({ unit_code: "103" })];
+  const secondPage = paginateLeaseRiskRows(rows, 2, 2);
+  assert.equal(secondPage.page, 2);
+  assert.equal(secondPage.total_pages, 2);
+  assert.deepEqual(secondPage.rows.map((row) => row.unit_code), ["103"]);
+
+  const outOfRangePage = paginateLeaseRiskRows(rows, 99, 2);
+  assert.equal(outOfRangePage.page, 2);
+
+  const invalidPage = paginateLeaseRiskRows(rows, 0, 2);
+  assert.equal(invalidPage.page, 1);
 });

@@ -27,6 +27,7 @@ export interface LeaseRiskQuery {
   has_positive_balance?: boolean;
   rent_gap_min?: number;
   rent_gap_max?: number;
+  page?: number;
 }
 
 function toQueryString(query: LeaseRiskQuery): string {

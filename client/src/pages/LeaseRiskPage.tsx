@@ -194,14 +194,17 @@ export function LeaseRiskPage() {
         </label>
 
         <div className="filter-actions">
-          <button className="btn btn-primary" onClick={() => setFilters(draftToQuery(draft))}>
+          <button
+            className="btn btn-primary"
+            onClick={() => setFilters({ ...draftToQuery(draft), page: 1 })}
+          >
             Apply
           </button>
           <button
             className="btn"
             onClick={() => {
               setDraft(EMPTY_DRAFT);
-              setFilters({});
+              setFilters({ page: 1 });
             }}
           >
             Reset
@@ -265,6 +268,11 @@ export function LeaseRiskPage() {
               <span className="bucket-value">{formatNumber(metrics.buckets[bucket])}</span>
             </li>
           ))}
+          <li className="bucket-row bucket-total-row">
+            <span className="bucket-label">Total</span>
+            <span />
+            <span className="bucket-value">{formatNumber(metrics.total_records)}</span>
+          </li>
         </ul>
       </div>
 
@@ -322,10 +330,32 @@ export function LeaseRiskPage() {
           </table>
         </div>
         <div className="card-subtitle" style={{ marginTop: 8 }}>
-          {formatNumber(metrics.total_records)} records · market rent coverage{" "}
+          {formatNumber(metrics.total_records)} records · showing page {data.pagination.page} of{" "}
+          {data.pagination.total_pages} · market rent coverage{" "}
           {formatPercent(data.coverage.market_rent_coverage)} · base rent coverage{" "}
           {formatPercent(data.coverage.base_rent_coverage)}
         </div>
+        {data.pagination.total_pages > 1 && (
+          <div className="pagination">
+            <button
+              className="btn"
+              disabled={data.pagination.page === 1}
+              onClick={() => setFilters({ ...filters, page: data.pagination.page - 1 })}
+            >
+              Previous
+            </button>
+            <span className="card-subtitle">
+              Page {data.pagination.page} of {data.pagination.total_pages}
+            </span>
+            <button
+              className="btn"
+              disabled={data.pagination.page === data.pagination.total_pages}
+              onClick={() => setFilters({ ...filters, page: data.pagination.page + 1 })}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

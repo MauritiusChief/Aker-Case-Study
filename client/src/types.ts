@@ -124,6 +124,11 @@ export interface LeaseRiskSummary {
   filters: Record<string, unknown>;
   metrics: LeaseRiskMetrics;
   rows: LeaseRiskRow[];
+  pagination: {
+    page: number;
+    page_size: number;
+    total_pages: number;
+  };
   options: {
     properties: { code: string; name: string | null }[];
     unit_types: string[];

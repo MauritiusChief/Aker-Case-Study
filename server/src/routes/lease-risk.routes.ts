@@ -20,6 +20,12 @@ function parseOptionalBoolean(value: unknown): boolean | undefined {
   return undefined;
 }
 
+function parsePage(value: unknown): number {
+  if (typeof value !== "string") return 1;
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
 function parseBucket(value: unknown): LeaseRiskFilters["bucket"] {
   if (typeof value !== "string") return undefined;
   return (LEASE_BUCKETS as readonly string[]).includes(value)
@@ -48,7 +54,8 @@ export function leaseRiskRouter(db: AppDatabase): Router {
         staleDays: BOOKING_STALE_DAYS,
         monthYear: DEFAULT_MONTH_YEAR,
       },
-      filters
+      filters,
+      parsePage(req.query.page)
     );
     res.json(result);
   });

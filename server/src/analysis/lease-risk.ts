@@ -60,6 +60,11 @@ export interface LeaseRiskSummary {
   filters: Record<string, unknown>;
   metrics: LeaseRiskMetrics;
   rows: LeaseRiskRow[];
+  pagination: {
+    page: number;
+    page_size: number;
+    total_pages: number;
+  };
   options: {
     properties: { code: string; name: string | null }[];
     unit_types: string[];
@@ -68,6 +73,8 @@ export interface LeaseRiskSummary {
   coverage: Record<string, number>;
   data_quality: DataQualityIssue[];
 }
+
+export const LEASE_RISK_PAGE_SIZE = 50;
 
 interface LeaseRiskSqlRow {
   property_code: string;
@@ -127,6 +134,23 @@ export function applyLeaseRiskFilters(
     }
     return true;
   });
+}
+
+export function paginateLeaseRiskRows(
+  rows: LeaseRiskRow[],
+  requestedPage: number,
+  pageSize = LEASE_RISK_PAGE_SIZE
+): { rows: LeaseRiskRow[]; page: number; page_size: number; total_pages: number } {
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safeRequestedPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const page = Math.min(safeRequestedPage, totalPages);
+  const start = (page - 1) * pageSize;
+  return {
+    rows: rows.slice(start, start + pageSize),
+    page,
+    page_size: pageSize,
+    total_pages: totalPages,
+  };
 }
 
 function baseRentInClause(): string {
@@ -198,7 +222,8 @@ export function queryLeaseRiskRows(
 export function computeLeaseRiskSummary(
   db: AppDatabase,
   options: AvailabilityOptions & { monthYear: string },
-  filters: LeaseRiskFilters
+  filters: LeaseRiskFilters,
+  requestedPage = 1
 ): LeaseRiskSummary {
   const allRows = queryLeaseRiskRows(db, options);
   const rows = applyLeaseRiskFilters(allRows, filters);
@@ -254,6 +279,7 @@ export function computeLeaseRiskSummary(
   const unitTypes = [...new Set(allRows.map((r) => r.unit_type).filter((t): t is string => t !== null))].sort();
 
   const availableOptions = { properties, unit_types: unitTypes };
+  const pagination = paginateLeaseRiskRows(rows, requestedPage);
 
   const definitions: Record<string, string> = {
     scheduled_base_rent:
@@ -269,7 +295,12 @@ export function computeLeaseRiskSummary(
     month_year: options.monthYear,
     filters: filters as Record<string, unknown>,
     metrics,
-    rows,
+    rows: pagination.rows,
+    pagination: {
+      page: pagination.page,
+      page_size: pagination.page_size,
+      total_pages: pagination.total_pages,
+    },
     options: availableOptions,
     definitions,
     coverage,

@@ -269,6 +269,26 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.bucket-total-row {
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+  padding-top: 12px;
+  font-weight: 600;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.pagination .btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .quality-list {
   list-style: none;
   margin: 0;
