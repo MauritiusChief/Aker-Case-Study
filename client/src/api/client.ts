@@ -71,8 +71,6 @@ export class MorningBriefApiError extends Error {
   }
 }
 
-const REQUEST_TIMEOUT_MS = 45_000;
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -365,13 +363,8 @@ async function postMorningBrief<T>(
   signal?: AbortSignal
 ): Promise<T> {
   const controller = new AbortController();
-  let timedOut = false;
   const abort = () => controller.abort();
   signal?.addEventListener("abort", abort, { once: true });
-  const timeout = window.setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, REQUEST_TIMEOUT_MS);
 
   try {
     const res = await fetch(`${API_BASE}${path}`, {
@@ -392,11 +385,9 @@ async function postMorningBrief<T>(
     return parser(payload);
   } catch (error) {
     if (error instanceof MorningBriefApiError) throw error;
-    if (timedOut) throw new MorningBriefApiError("TIMEOUT", "The AI provider did not respond in time.");
     if (signal?.aborted) throw new DOMException("Request cancelled", "AbortError");
     throw new MorningBriefApiError("PROVIDER_UNAVAILABLE", "The AI provider could not be reached.");
   } finally {
-    window.clearTimeout(timeout);
     signal?.removeEventListener("abort", abort);
   }
 }

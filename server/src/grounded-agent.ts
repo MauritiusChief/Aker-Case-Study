@@ -112,28 +112,24 @@ export async function runGroundedAgent(
   let realToolCalls = 0;
   let emptyResponses = 0;
   let injectionIndex = 0;
-  let lastInjectedRoundsRemaining: number | null = null;
 
-  const injectBudgetInfo = (
+  const createBudgetInfoCall = (): ModelToolCall => {
+    injectionIndex += 1;
+    return {
+      id: `_budget_info_${runId}_${injectionIndex}`,
+      type: "function",
+      function: { name: "_budget_info", arguments: "{}" },
+    };
+  };
+
+  const appendBudgetInfoResult = (
+    call: ModelToolCall,
     remainingToolCalls: number,
     remainingToolRounds: number
   ): void => {
-    injectionIndex += 1;
-    const callId = `_budget_info_${runId}_${injectionIndex}`;
-    messages.push({
-      role: "assistant",
-      content: null,
-      tool_calls: [
-        {
-          id: callId,
-          type: "function",
-          function: { name: "_budget_info", arguments: "{}" },
-        },
-      ],
-    });
     messages.push({
       role: "tool",
-      tool_call_id: callId,
+      tool_call_id: call.id,
       content: budgetContent(
         remainingToolCalls,
         remainingToolRounds,
@@ -163,13 +159,6 @@ export async function runGroundedAgent(
   };
 
   const finalize = async (): Promise<GroundedAgentResult> => {
-    if (lastInjectedRoundsRemaining === null || lastInjectedRoundsRemaining > 0) {
-      injectBudgetInfo(
-        config.maxRealToolCalls - realToolCalls,
-        0
-      );
-      lastInjectedRoundsRemaining = 0;
-    }
     if (modelAttempts >= config.maxModelAttempts) {
       throw new LlmError(
         "llm_investigation_limit",
@@ -226,7 +215,8 @@ export async function runGroundedAgent(
     debugLog(
       "model response",
       `finish_reason=${response.finish_reason ?? ""}`,
-      `has_content=${Boolean(response.content)}`
+      `has_content=${Boolean(response.content)}`,
+      `has_reasoning_content=${response.reasoning_content !== undefined}`
     );
 
     stripHallucinatedBudgetInfo(response);
@@ -302,10 +292,18 @@ export async function runGroundedAgent(
       `round=${toolRounds}`,
       "tools=" + realCalls.map((call) => call.function.name).join(",")
     );
+    const newRemainingCalls =
+      config.maxRealToolCalls - (realToolCalls + realCalls.length);
+    const newRemainingRounds = config.maxToolRounds - toolRounds;
+    const budgetRemainingRounds = newRemainingCalls <= 0 ? 0 : newRemainingRounds;
+    const budgetCall = createBudgetInfoCall();
     messages.push({
       role: "assistant",
       content: response.content,
-      tool_calls: realCalls,
+      ...(response.reasoning_content === undefined
+        ? {}
+        : { reasoning_content: response.reasoning_content }),
+      tool_calls: [...realCalls, budgetCall],
     });
 
     for (const call of realCalls) {
@@ -338,14 +336,15 @@ export async function runGroundedAgent(
       );
     }
 
-    const newRemainingCalls = config.maxRealToolCalls - realToolCalls;
-    const newRemainingRounds = config.maxToolRounds - toolRounds;
-    injectBudgetInfo(newRemainingCalls, newRemainingRounds);
-    lastInjectedRoundsRemaining = newRemainingRounds;
+    appendBudgetInfoResult(
+      budgetCall,
+      newRemainingCalls,
+      budgetRemainingRounds
+    );
     debugLog(
       "budget injected",
       `remainingCalls=${newRemainingCalls}`,
-      `remainingRounds=${newRemainingRounds}`
+      `remainingRounds=${budgetRemainingRounds}`
     );
   }
 }

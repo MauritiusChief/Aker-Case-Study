@@ -30,6 +30,7 @@ export interface ModelToolCall {
 export interface ModelMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string | null;
+  reasoning_content?: string;
   tool_call_id?: string;
   tool_calls?: ModelToolCall[];
   finish_reason?: string;

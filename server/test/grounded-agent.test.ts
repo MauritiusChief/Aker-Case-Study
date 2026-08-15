@@ -417,6 +417,27 @@ test("premature final content does not trigger an extra finalization request", a
   assert.equal(model.requests[0].tools.length, 1);
 });
 
+test("passes provider reasoning content back with the next tool request", async () => {
+  const firstResponse = call("c1", "get_availability");
+  firstResponse.reasoning_content = "provider reasoning";
+  const { model, promise } = run(
+    [firstResponse, content("final")],
+    [availabilityTool]
+  );
+  await promise;
+  const priorAssistant = model.requests[1].messages.find(
+    (message) =>
+      message.role === "assistant" &&
+      message.tool_calls?.some((toolCall) => toolCall.id === "c1")
+  );
+  assert.equal(priorAssistant?.reasoning_content, "provider reasoning");
+  assert.ok(
+    priorAssistant?.tool_calls?.some(
+      (toolCall) => toolCall.function.name === "_budget_info"
+    )
+  );
+});
+
 test("finalization request omits tools while investigation requests include them", async () => {
   const { model, promise } = run(
     [

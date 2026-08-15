@@ -102,10 +102,16 @@ test("DeepSeek preserves finish_reason from the provider payload", async () => {
     apiKey: "test",
     fetchImpl: async () =>
       new Response(
-        JSON.stringify({ choices: [{ message: { content: "ok" }, finish_reason: "tool_calls" }] }),
+        JSON.stringify({
+          choices: [{
+            message: { content: "ok", reasoning_content: "provider reasoning" },
+            finish_reason: "tool_calls",
+          }],
+        }),
         { status: 200, headers: { "content-type": "application/json" } }
       ),
   });
   const message = await model.complete(request);
   assert.equal(message.finish_reason, "tool_calls");
+  assert.equal(message.reasoning_content, "provider reasoning");
 });
