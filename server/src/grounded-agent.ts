@@ -9,17 +9,23 @@ import {
   type ModelMessage,
   type ModelTool,
   type ModelToolCall,
+  type WidgetOperation,
 } from "./assistant-types.js";
 import {
   isAssistantToolName,
   type ToolExecutor,
 } from "./assistant-tools.js";
+import {
+  isWidgetToolName,
+  WidgetDraftStore,
+} from "./widget-tools.js";
 import { AKER_LLM_DEBUG } from "./config.js";
 
 export interface GroundedAgentConfig {
   maxModelAttempts: number;
   maxToolRounds: number;
   maxRealToolCalls: number;
+  maxWidgetToolCalls: number;
 }
 
 export interface GroundedAgentOptions {
@@ -28,24 +34,28 @@ export interface GroundedAgentOptions {
   task: string;
   facts: BriefFacts;
   tools: ModelTool[];
+  widgetTools: ModelTool[];
+  widgetDraft: WidgetDraftStore;
+  buildSubmissionTool: (sourceIds: string[]) => ModelTool;
   executeTool: ToolExecutor;
   extraContext?: Record<string, unknown>;
   config: GroundedAgentConfig;
 }
 
 export interface GroundedAgentResult {
-  content: string;
+  submission: Record<string, unknown>;
+  widgets: import("./assistant-types.js").SemanticWidget[];
+  widgetOperations: WidgetOperation[];
   sources: Record<string, unknown>;
   toolCalls: number;
   toolRounds: number;
+  widgetToolCalls: number;
   modelAttempts: number;
   securityEvents: AgentSecurityEvent[];
 }
 
 function debugLog(...parts: unknown[]): void {
-  if (AKER_LLM_DEBUG) {
-    console.log("[grounded-agent]", ...parts);
-  }
+  if (AKER_LLM_DEBUG) console.log("[grounded-agent]", ...parts);
 }
 
 function parseArgumentsObject(argumentsJson: string): Record<string, unknown> {
@@ -68,18 +78,24 @@ function yaml(value: unknown): string {
 function budgetContent(
   remainingToolCalls: number,
   remainingToolRounds: number,
+  remainingWidgetCalls: number,
   totalToolCalls: number
 ): string {
+  const canContinue = remainingToolRounds > 0 && remainingToolCalls > 0;
   return yaml({
     source: "application_control",
     remaining_tool_calls: remainingToolCalls,
     remaining_tool_rounds: remainingToolRounds,
+    remaining_widget_calls: remainingWidgetCalls,
     total_tool_calls: totalToolCalls,
-    instruction:
-      remainingToolRounds > 0
-        ? "Plan further investigation within this budget."
-        : "Investigation is complete. Produce the final JSON response without additional tools.",
+    instruction: canContinue || remainingWidgetCalls > 0
+      ? "Continue with available data or widget tools, or call the submission tool when the grounded text is ready. Submission is terminal."
+      : "Investigation and widget budgets are complete. Call the submission tool.",
   });
+}
+
+function invalid(message: string): never {
+  throw new LlmError("llm_invalid_response", message);
 }
 
 export async function runGroundedAgent(
@@ -91,6 +107,8 @@ export async function runGroundedAgent(
     task,
     facts,
     tools,
+    widgetTools,
+    buildSubmissionTool,
     executeTool,
     config,
   } = options;
@@ -98,7 +116,8 @@ export async function runGroundedAgent(
   const runId = randomUUID();
   const securityEvents: AgentSecurityEvent[] = [];
   const sources = new Map<string, unknown>([["brief_facts", facts]]);
-  const openToolNames = new Set(tools.map((tool) => tool.function.name));
+  let widgetDraft = options.widgetDraft;
+  const businessToolNames = new Set(tools.map((tool) => tool.function.name));
 
   const messages: ModelMessage[] = [
     { role: "system", content: systemPrompt },
@@ -115,7 +134,7 @@ export async function runGroundedAgent(
   let modelAttempts = 0;
   let toolRounds = 0;
   let realToolCalls = 0;
-  let emptyResponses = 0;
+  let widgetToolCalls = 0;
   let injectionIndex = 0;
 
   const createBudgetInfoCall = (): ModelToolCall => {
@@ -127,81 +146,17 @@ export async function runGroundedAgent(
     };
   };
 
-  const appendBudgetInfoResult = (
-    call: ModelToolCall,
-    remainingToolCalls: number,
-    remainingToolRounds: number
-  ): void => {
-    messages.push({
-      role: "tool",
-      tool_call_id: call.id,
-      content: budgetContent(
-        remainingToolCalls,
-        remainingToolRounds,
-        config.maxRealToolCalls
-      ),
-    });
-  };
-
   const stripHallucinatedBudgetInfo = (response: ModelMessage): void => {
     const rawCalls = response.tool_calls ?? [];
-    const hallucinated = rawCalls.filter(
-      (call) => call.function.name === "_budget_info"
-    );
+    const hallucinated = rawCalls.filter((call) => call.function.name === "_budget_info");
     if (hallucinated.length > 0) {
-      securityEvents.push({
-        type: "budget_info_hallucination",
-        count: hallucinated.length,
-      });
-      debugLog(
-        "stripped hallucinated _budget_info calls",
-        hallucinated.length
-      );
+      securityEvents.push({ type: "budget_info_hallucination", count: hallucinated.length });
+      debugLog("stripped hallucinated _budget_info calls", hallucinated.length);
     }
-    response.tool_calls = rawCalls.filter(
-      (call) => call.function.name !== "_budget_info"
-    );
-  };
-
-  const finalize = async (): Promise<GroundedAgentResult> => {
-    if (modelAttempts >= config.maxModelAttempts) {
-      throw new LlmError(
-        "llm_investigation_limit",
-        "Model exceeded the bounded investigation limit"
-      );
-    }
-    debugLog("phase=finalize", `modelAttempt=${modelAttempts + 1}`, "tools=[]");
-    const response = await model.complete({ messages, tools: [], jsonMode: true });
-    modelAttempts += 1;
-    stripHallucinatedBudgetInfo(response);
-    if (!response.content || response.content.trim() === "") {
-      throw new LlmError(
-        "llm_invalid_response",
-        "Model returned neither content nor tool calls"
-      );
-    }
-    debugLog(
-      "finalize complete",
-      `finish_reason=${response.finish_reason ?? ""}`,
-      `has_content=${Boolean(response.content)}`
-    );
-    return {
-      content: response.content,
-      sources: Object.fromEntries(sources),
-      toolCalls: realToolCalls,
-      toolRounds,
-      modelAttempts,
-      securityEvents,
-    };
+    response.tool_calls = rawCalls.filter((call) => call.function.name !== "_budget_info");
   };
 
   while (true) {
-    const remainingToolCalls = config.maxRealToolCalls - realToolCalls;
-    const remainingToolRounds = config.maxToolRounds - toolRounds;
-    if (remainingToolRounds <= 0 || remainingToolCalls <= 0) {
-      return await finalize();
-    }
-
     if (modelAttempts >= config.maxModelAttempts) {
       throw new LlmError(
         "llm_investigation_limit",
@@ -209,52 +164,123 @@ export async function runGroundedAgent(
       );
     }
 
+    const remainingToolCalls = config.maxRealToolCalls - realToolCalls;
+    const remainingToolRounds = config.maxToolRounds - toolRounds;
+    const remainingWidgetCalls = config.maxWidgetToolCalls - widgetToolCalls;
+    const mustSubmit =
+      modelAttempts >= config.maxModelAttempts - 1 ||
+      ((remainingToolCalls <= 0 || remainingToolRounds <= 0) && remainingWidgetCalls <= 0);
+    const availableBusinessTools = remainingToolCalls > 0 && remainingToolRounds > 0 && !mustSubmit
+      ? tools
+      : [];
+    const availableWidgetTools = remainingWidgetCalls > 0 && !mustSubmit ? widgetTools : [];
+    const submissionTool = buildSubmissionTool([...sources.keys()]);
+    const expectedSubmissionName = submissionTool.function.name;
+    const requestTools = mustSubmit
+      ? [submissionTool]
+      : [...availableBusinessTools, ...availableWidgetTools, submissionTool];
+    const openNames = new Set(requestTools.map((tool) => tool.function.name));
+
     debugLog(
-      "phase=investigate",
+      mustSubmit ? "phase=forced-submit" : "phase=work",
       `modelAttempt=${modelAttempts + 1}`,
       `remainingCalls=${remainingToolCalls}`,
-      `remainingRounds=${remainingToolRounds}`
+      `remainingRounds=${remainingToolRounds}`,
+      `remainingWidgetCalls=${remainingWidgetCalls}`
     );
-    const response = await model.complete({ messages, tools, jsonMode: true });
+    const response = await model.complete({
+      messages,
+      tools: requestTools,
+      toolChoice: mustSubmit
+        ? { type: "function", function: { name: expectedSubmissionName } }
+        : "required",
+    });
     modelAttempts += 1;
-    debugLog(
-      "model response",
-      `finish_reason=${response.finish_reason ?? ""}`,
-      `has_content=${Boolean(response.content)}`,
-      `has_reasoning_content=${response.reasoning_content !== undefined}`
-    );
-
     stripHallucinatedBudgetInfo(response);
-    const realCalls = response.tool_calls ?? [];
+    const calls = response.tool_calls ?? [];
+    if (calls.length === 0) invalid("Model must respond with an available tool call");
 
-    if (realCalls.length === 0) {
-      if (response.content && response.content.trim() !== "") {
-        return {
-          content: response.content,
-          sources: Object.fromEntries(sources),
-          toolCalls: realToolCalls,
-          toolRounds,
-          modelAttempts,
-          securityEvents,
-        };
+    const seenIds = new Set<string>();
+    for (const call of calls) {
+      if (!call.id || call.id.trim() === "") invalid("Tool call is missing an id");
+      if (seenIds.has(call.id)) {
+        securityEvents.push({ type: "duplicate_tool_call_id", id: call.id });
+        invalid("Tool call ids must be unique within a round");
       }
-      emptyResponses += 1;
-      debugLog("empty response", `emptyResponses=${emptyResponses}`);
-      if (emptyResponses > 1) {
-        throw new LlmError(
-          "llm_invalid_response",
-          "Model returned empty responses without final content"
-        );
+      seenIds.add(call.id);
+      if (!openNames.has(call.function.name)) {
+        securityEvents.push({ type: "unknown_tool", name: call.function.name });
+        invalid(`Tool is not available in this scope: ${call.function.name}`);
       }
-      continue;
     }
 
-    emptyResponses = 0;
+    const submissionCalls = calls.filter(
+      (call) => call.function.name === expectedSubmissionName
+    );
+    if (submissionCalls.length > 1) invalid("Only one submission tool call is allowed");
 
-    if (realCalls.length > remainingToolCalls) {
+    if (submissionCalls.length === 1) {
+      const submission = parseArgumentsObject(submissionCalls[0].function.arguments);
+      const discardedBusiness = calls.filter((call) => businessToolNames.has(call.function.name));
+      const widgetMutations = calls.filter(
+        (call) => isWidgetToolName(call.function.name) && call.function.name !== "get_widgets"
+      );
+      const discardedReads = calls.filter((call) => call.function.name === "get_widgets");
+      const discardedCount = discardedBusiness.length + discardedReads.length;
+      if (discardedCount > 0) {
+        securityEvents.push({ type: "discarded_tool_calls_on_submit", count: discardedCount });
+      }
+      if (widgetMutations.length > remainingWidgetCalls) {
+        securityEvents.push({
+          type: "budget_exceeded",
+          requested: widgetMutations.length,
+          remaining: remainingWidgetCalls,
+        });
+        throw new LlmError(
+          "llm_investigation_limit",
+          "Model requested more widget mutations than the remaining widget budget"
+        );
+      }
+      const candidateDraft = widgetDraft.clone();
+      try {
+        for (const call of widgetMutations) {
+          candidateDraft.execute(call.function.name as import("./assistant-types.js").WidgetToolName, call.function.arguments);
+        }
+      } catch (error) {
+        invalid(error instanceof Error ? error.message : "Widget mutation failed");
+      }
+      widgetDraft = candidateDraft;
+      widgetToolCalls += widgetMutations.length;
+      debugLog(
+        "submission accepted",
+        `name=${expectedSubmissionName}`,
+        `discarded=${discardedCount}`,
+        `widgetMutations=${widgetMutations.length}`
+      );
+      return {
+        submission,
+        widgets: widgetDraft.state(),
+        widgetOperations: widgetDraft.operationLog(),
+        sources: Object.fromEntries(sources),
+        toolCalls: realToolCalls,
+        toolRounds,
+        widgetToolCalls,
+        modelAttempts,
+        securityEvents,
+      };
+    }
+
+    if (mustSubmit) invalid(`Model must call ${expectedSubmissionName}`);
+
+    const businessCalls = calls.filter((call) => isAssistantToolName(call.function.name));
+    const widgetCalls = calls.filter((call) => isWidgetToolName(call.function.name));
+    if (businessCalls.length + widgetCalls.length !== calls.length) {
+      invalid("Model returned an unsupported tool call");
+    }
+    if (businessCalls.length > remainingToolCalls) {
       securityEvents.push({
         type: "budget_exceeded",
-        requested: realCalls.length,
+        requested: businessCalls.length,
         remaining: remainingToolCalls,
       });
       throw new LlmError(
@@ -262,45 +288,34 @@ export async function runGroundedAgent(
         "Model requested more tools than the remaining investigation budget"
       );
     }
+    if (widgetCalls.length > remainingWidgetCalls) {
+      securityEvents.push({
+        type: "budget_exceeded",
+        requested: widgetCalls.length,
+        remaining: remainingWidgetCalls,
+      });
+      throw new LlmError(
+        "llm_investigation_limit",
+        "Model requested more widget tools than the remaining widget budget"
+      );
+    }
+    for (const call of businessCalls) parseArgumentsObject(call.function.arguments);
 
-    const seenIds = new Set<string>();
-    for (const call of realCalls) {
-      if (!call.id || call.id.trim() === "") {
-        throw new LlmError("llm_invalid_response", "Tool call is missing an id");
-      }
-      if (seenIds.has(call.id)) {
-        securityEvents.push({ type: "duplicate_tool_call_id", id: call.id });
-        throw new LlmError(
-          "llm_invalid_response",
-          "Tool call ids must be unique within a round"
+    const candidateDraft = widgetDraft.clone();
+    const widgetResults = new Map<string, unknown>();
+    try {
+      for (const call of widgetCalls) {
+        widgetResults.set(
+          call.id,
+          candidateDraft.execute(call.function.name as import("./assistant-types.js").WidgetToolName, call.function.arguments)
         );
       }
-      seenIds.add(call.id);
-      const name = call.function.name;
-      if (!isAssistantToolName(name)) {
-        securityEvents.push({ type: "unknown_tool", name });
-        throw new LlmError("llm_invalid_response", `Unknown tool: ${name}`);
-      }
-      if (!openToolNames.has(name)) {
-        securityEvents.push({ type: "unknown_tool", name });
-        throw new LlmError(
-          "llm_invalid_response",
-          `Tool is not available in this scope: ${name}`
-        );
-      }
-      parseArgumentsObject(call.function.arguments);
+    } catch (error) {
+      invalid(error instanceof Error ? error.message : "Widget tool execution failed");
     }
 
-    toolRounds += 1;
-    debugLog(
-      "tool round",
-      `round=${toolRounds}`,
-      "tools=" + realCalls.map((call) => call.function.name).join(",")
-    );
-    const newRemainingCalls =
-      config.maxRealToolCalls - (realToolCalls + realCalls.length);
-    const newRemainingRounds = config.maxToolRounds - toolRounds;
-    const budgetRemainingRounds = newRemainingCalls <= 0 ? 0 : newRemainingRounds;
+    if (businessCalls.length > 0) toolRounds += 1;
+    widgetToolCalls += widgetCalls.length;
     const budgetCall = createBudgetInfoCall();
     messages.push({
       role: "assistant",
@@ -308,48 +323,48 @@ export async function runGroundedAgent(
       ...(response.reasoning_content === undefined
         ? {}
         : { reasoning_content: response.reasoning_content }),
-      tool_calls: [...realCalls, budgetCall],
+      tool_calls: [...calls, budgetCall],
     });
 
-    for (const call of realCalls) {
-      const startedAt = Date.now();
-      let result: unknown;
-      try {
-        result = executeTool(
-          call.function.name as AssistantToolName,
-          call.function.arguments
-        );
-      } catch (error) {
-        throw new LlmError(
-          "llm_invalid_response",
-          error instanceof Error ? error.message : "Tool execution failed"
-        );
+    for (const call of calls) {
+      if (isAssistantToolName(call.function.name)) {
+        let result: unknown;
+        try {
+          result = executeTool(call.function.name as AssistantToolName, call.function.arguments);
+        } catch (error) {
+          invalid(error instanceof Error ? error.message : "Tool execution failed");
+        }
+        realToolCalls += 1;
+        const sourceId = `tool_${realToolCalls}`;
+        sources.set(sourceId, result);
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: `Source id: ${sourceId}\nSource value (citation paths are relative to this value):\n${yaml(result)}`,
+        });
+        debugLog("tool executed", `source=${sourceId}`, `name=${call.function.name}`);
+      } else {
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: `Non-citable widget draft result:\n${yaml(widgetResults.get(call.id))}`,
+        });
       }
-      realToolCalls += 1;
-      const sourceId = `tool_${realToolCalls}`;
-      sources.set(sourceId, result);
-      messages.push({
-        role: "tool",
-        tool_call_id: call.id,
-        content: `Source id: ${sourceId}\nSource value (citation paths are relative to this value):\n${yaml(result)}`,
-      });
-      debugLog(
-        "tool executed",
-        `source=${sourceId}`,
-        `name=${call.function.name}`,
-        `ms=${Date.now() - startedAt}`
-      );
     }
+    widgetDraft = candidateDraft;
 
-    appendBudgetInfoResult(
-      budgetCall,
-      newRemainingCalls,
-      budgetRemainingRounds
-    );
-    debugLog(
-      "budget injected",
-      `remainingCalls=${newRemainingCalls}`,
-      `remainingRounds=${budgetRemainingRounds}`
-    );
+    const nextRemainingCalls = config.maxRealToolCalls - realToolCalls;
+    const nextRemainingRounds = config.maxToolRounds - toolRounds;
+    const nextRemainingWidgetCalls = config.maxWidgetToolCalls - widgetToolCalls;
+    messages.push({
+      role: "tool",
+      tool_call_id: budgetCall.id,
+      content: budgetContent(
+        nextRemainingCalls,
+        nextRemainingCalls <= 0 ? 0 : nextRemainingRounds,
+        nextRemainingWidgetCalls,
+        realToolCalls
+      ),
+    });
   }
 }

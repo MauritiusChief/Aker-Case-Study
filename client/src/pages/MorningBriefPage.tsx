@@ -12,6 +12,7 @@ import type {
   MorningBriefChatMessage,
   MorningBriefContent,
   MorningBriefErrorCode,
+  MorningBriefSemanticWidget,
   MorningBriefSnapshot,
   MorningBriefWidget as Widget,
 } from "../types";
@@ -19,6 +20,7 @@ import type {
 const STORAGE_KEY = "aker.morning-brief.workspace.v1";
 const STORAGE_VERSION = 1;
 const RECENT_CHAT_LIMIT = 12;
+const MAX_WIDGETS = 6;
 
 interface PersistedWorkspace {
   version: 1;
@@ -111,12 +113,27 @@ function loadWorkspace(): PersistedWorkspace {
       !Array.isArray(value.widgets) || !value.widgets.every(isMorningBriefWidget) ||
       !Array.isArray(value.full_chat) || !value.full_chat.every(isChatMessage) ||
       !Number.isInteger(value.revision) || Number(value.revision) < 0) return EMPTY_WORKSPACE;
+    const storedBrief = value.brief as MorningBriefContent | null;
+    const semanticIds = new Set(storedBrief?.semantic_widgets.map((widget) => widget.id) ?? []);
+    const renderedWidgets = limitWidgets(
+      (value.widgets as Widget[]).filter((widget) => semanticIds.has(widget.id))
+    );
+    const repairedBrief = storedBrief
+      ? {
+          ...storedBrief,
+          semantic_widgets: preservePinnedSemanticWidgets(
+            storedBrief.semantic_widgets,
+            storedBrief.semantic_widgets,
+            renderedWidgets
+          ),
+        }
+      : null;
     return {
       version: STORAGE_VERSION,
-      brief: value.brief,
+      brief: repairedBrief,
       full_chat: value.full_chat,
       recent_chat: value.full_chat.slice(-RECENT_CHAT_LIMIT),
-      widgets: value.widgets,
+      widgets: renderedWidgets,
       snapshot: value.snapshot,
       revision: Number(value.revision),
     };
@@ -140,7 +157,45 @@ function preservePinnedWidgets(current: Widget[], incoming: Widget[]): Widget[] 
   for (const widget of current) {
     if (widget.pinned && !incoming.some((candidate) => candidate.id === widget.id)) merged.push(widget);
   }
-  return merged;
+  return limitWidgets(merged);
+}
+
+function limitWidgets(items: Widget[]): Widget[] {
+  if (items.length <= MAX_WIDGETS) return items;
+  const pinnedIds = new Set(items.filter((widget) => widget.pinned).map((widget) => widget.id));
+  const keep = new Set<string>();
+  for (const widget of items) {
+    if (pinnedIds.has(widget.id) && keep.size < MAX_WIDGETS) keep.add(widget.id);
+  }
+  for (const widget of items) {
+    if (keep.size >= MAX_WIDGETS) break;
+    keep.add(widget.id);
+  }
+  return items.filter((widget) => keep.has(widget.id));
+}
+
+function preservePinnedSemanticWidgets(
+  current: MorningBriefSemanticWidget[],
+  incoming: MorningBriefSemanticWidget[],
+  rendered: Widget[]
+): MorningBriefSemanticWidget[] {
+  const currentById = new Map(current.map((widget) => [widget.id, widget]));
+  const renderedIds = new Set(rendered.map((widget) => widget.id));
+  const pinnedById = new Map(
+    rendered
+      .filter((widget) => widget.pinned)
+      .flatMap((widget) => {
+        const semantic = currentById.get(widget.id);
+        return semantic ? [[widget.id, semantic] as const] : [];
+      })
+  );
+  const merged = incoming
+    .filter((widget) => renderedIds.has(widget.id))
+    .map((widget) => pinnedById.get(widget.id) ?? widget);
+  for (const widget of pinnedById.values()) {
+    if (!merged.some((candidate) => candidate.id === widget.id)) merged.push(widget);
+  }
+  return merged.slice(0, MAX_WIDGETS);
 }
 
 function applyAssistantWidgets(current: Widget[], response: MorningBriefAssistantResponse): Widget[] {
@@ -235,8 +290,14 @@ export function MorningBriefPage() {
         setLastFailed({ kind: "generate" });
         return;
       }
-      setBrief(response.brief);
-      setWidgets((current) => preservePinnedWidgets(current, response.widgets));
+      const nextWidgets = preservePinnedWidgets(widgets, response.widgets);
+      const nextSemanticWidgets = preservePinnedSemanticWidgets(
+        brief?.semantic_widgets ?? [],
+        response.brief.semantic_widgets,
+        nextWidgets
+      );
+      setBrief({ ...response.brief, semantic_widgets: nextSemanticWidgets });
+      setWidgets(nextWidgets);
       setSnapshot(response.snapshot);
       setChat([]);
       commitRevision(response.revision);

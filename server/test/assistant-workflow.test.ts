@@ -43,6 +43,18 @@ class FakeModel implements ChatModel {
   }
 }
 
+function submit(name: "submit_morning_brief" | "submit_assistant_answer", value: unknown): ModelMessage {
+  return {
+    role: "assistant",
+    content: null,
+    tool_calls: [{
+      id: `call-${name}`,
+      type: "function",
+      function: { name, arguments: JSON.stringify(value) },
+    }],
+  };
+}
+
 test("morning workflow executes bounded tools and validates grounded output", async () => {
   const model = new FakeModel([
     {
@@ -56,9 +68,7 @@ test("morning workflow executes bounded tools and validates grounded output", as
         },
       ],
     },
-    {
-      role: "assistant",
-      content: JSON.stringify({
+    submit("submit_morning_brief", {
         findings: [
           {
             id: "availability",
@@ -69,10 +79,7 @@ test("morning workflow executes bounded tools and validates grounded output", as
             evidence: [{ source_id: "tool_1", path: "/portfolio/available_units" }],
           },
         ],
-        widget_operations: [],
-        widgets: [],
       }),
-    },
   ]);
   const result = await generateMorningBrief(model, facts, () => ({
     portfolio: { available_units: 2 },
@@ -84,9 +91,7 @@ test("morning workflow executes bounded tools and validates grounded output", as
 
 test("workflow rejects citations that are not grounded in returned sources", async () => {
   const model = new FakeModel([
-    {
-      role: "assistant",
-      content: JSON.stringify({
+    submit("submit_morning_brief", {
         findings: [
           {
             id: "bad",
@@ -97,10 +102,7 @@ test("workflow rejects citations that are not grounded in returned sources", asy
             evidence: [{ source_id: "brief_facts", path: "/portfolio/not_real" }],
           },
         ],
-        widget_operations: [],
-        widgets: [],
       }),
-    },
   ]);
   await assert.rejects(
     generateMorningBrief(model, facts, () => ({})),
@@ -110,9 +112,7 @@ test("workflow rejects citations that are not grounded in returned sources", asy
 
 test("morning workflow requires investigation before publishing findings", async () => {
   const model = new FakeModel([
-    {
-      role: "assistant",
-      content: JSON.stringify({
+    submit("submit_morning_brief", {
         findings: [
           {
             id: "unverified",
@@ -123,10 +123,7 @@ test("morning workflow requires investigation before publishing findings", async
             evidence: [{ source_id: "brief_facts", path: "/portfolio/available_units" }],
           },
         ],
-        widget_operations: [],
-        widgets: [],
       }),
-    },
   ]);
   await assert.rejects(
     generateMorningBrief(model, facts, () => ({})),
@@ -138,23 +135,35 @@ test("Q&A uses prior brief context and returns validated widget changes", async 
   const model = new FakeModel([
     {
       role: "assistant",
-      content: JSON.stringify({
+      content: null,
+      tool_calls: [
+        {
+          id: "create-widget",
+          type: "function",
+          function: {
+            name: "create_widget",
+            arguments: JSON.stringify({
+              widget: {
+                id: "availability-p1",
+                type: "availability",
+                title: "P1 availability",
+                scope: { level: "property", property_codes: ["P1"] },
+              },
+            }),
+          },
+        },
+        {
+          id: "submit-answer",
+          type: "function",
+          function: {
+            name: "submit_assistant_answer",
+            arguments: JSON.stringify({
         answer: "The snapshot has two available units.",
         citations: [{ source_id: "brief_facts", path: "/portfolio/available_units" }],
-        widget_operations: [
-          {
-            op: "upsert",
-            widget: {
-              id: "availability-p1",
-              type: "availability",
-              title: "P1 availability",
-              scope: { level: "property", property_codes: ["P1"] },
-              source_ids: ["brief_facts"],
-            },
+            }),
           },
-        ],
-        widgets: [],
-      }),
+        },
+      ],
     },
   ]);
   const result = await answerAssistantQuery(
@@ -187,9 +196,7 @@ test("four consecutive investigation rounds still produce a validated brief", as
     toolRound("c2"),
     toolRound("c3"),
     toolRound("c4"),
-    {
-      role: "assistant",
-      content: JSON.stringify({
+    submit("submit_morning_brief", {
         findings: [
           {
             id: "availability",
@@ -200,10 +207,7 @@ test("four consecutive investigation rounds still produce a validated brief", as
             evidence: [{ source_id: "tool_4", path: "/portfolio/available_units" }],
           },
         ],
-        widget_operations: [],
-        widgets: [],
       }),
-    },
   ]);
   const result = await generateMorningBrief(model, facts, () => ({
     portfolio: { available_units: 2 },
@@ -225,9 +229,7 @@ test("citations to the injected _budget_info source are rejected", async () => {
         },
       ],
     },
-    {
-      role: "assistant",
-      content: JSON.stringify({
+    submit("submit_morning_brief", {
         findings: [
           {
             id: "bad-budget",
@@ -238,10 +240,7 @@ test("citations to the injected _budget_info source are rejected", async () => {
             evidence: [{ source_id: "_budget_info", path: "/remaining_tool_calls" }],
           },
         ],
-        widget_operations: [],
-        widgets: [],
       }),
-    },
   ]);
   await assert.rejects(
     generateMorningBrief(model, facts, () => ({ portfolio: { available_units: 2 } })),

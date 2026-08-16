@@ -161,12 +161,26 @@ export class DeepSeekChatModel implements ChatModel {
     const body: Record<string, unknown> = {
       model: this.name,
       messages: request.messages,
-      response_format: request.jsonMode ? { type: "json_object" } : undefined,
       temperature: 0.1,
     };
     if (request.tools.length > 0) {
       body.tools = request.tools;
-      body.tool_choice = "auto";
+      const choice = request.toolChoice ?? "auto";
+      if (
+        typeof choice === "object" &&
+        !request.tools.some((tool) => tool.function.name === choice.function.name)
+      ) {
+        throw new LlmError(
+          "llm_invalid_response",
+          `tool_choice references an unavailable tool: ${choice.function.name}`
+        );
+      }
+      body.tool_choice = choice;
+    } else if (request.toolChoice !== undefined) {
+      throw new LlmError(
+        "llm_invalid_response",
+        "tool_choice cannot be provided without tools"
+      );
     }
     const serializedBody = JSON.stringify(body);
     const requestSnapshot: unknown = JSON.parse(serializedBody);

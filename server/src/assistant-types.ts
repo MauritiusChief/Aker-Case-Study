@@ -27,6 +27,14 @@ export interface ModelToolCall {
   };
 }
 
+export type ModelToolChoice =
+  | "auto"
+  | "required"
+  | {
+      type: "function";
+      function: { name: string };
+    };
+
 export interface ModelMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string | null;
@@ -45,10 +53,26 @@ export type AssistantToolName =
   | "get_rent_gap"
   | "get_data_quality";
 
+/** Tools that manage the non-citable widget draft for one agent run. */
+export type WidgetToolName =
+  | "create_widget"
+  | "get_widgets"
+  | "update_widget"
+  | "delete_widget";
+
+/** Terminal tools that submit grounded text without widget state. */
+export type SubmissionToolName =
+  | "submit_morning_brief"
+  | "submit_assistant_answer";
+
 /** Reserved control tool used for application-injected budget updates. */
 export type ReservedControlToolName = "_budget_info";
 
-export type MessageToolName = AssistantToolName | ReservedControlToolName;
+export type MessageToolName =
+  | AssistantToolName
+  | WidgetToolName
+  | SubmissionToolName
+  | ReservedControlToolName;
 
 export interface ModelTool {
   type: "function";
@@ -62,7 +86,7 @@ export interface ModelTool {
 export interface ModelRequest {
   messages: ModelMessage[];
   tools: ModelTool[];
-  jsonMode: boolean;
+  toolChoice?: ModelToolChoice;
 }
 
 export interface ChatModel {
@@ -70,13 +94,16 @@ export interface ChatModel {
   complete(request: ModelRequest): Promise<ModelMessage>;
 }
 
-export type WidgetType =
-  | "kpi"
-  | "property_comparison"
-  | "availability"
-  | "lease_expirations"
-  | "rent_gap"
-  | "data_quality";
+export const WIDGET_TYPES = [
+  "kpi",
+  "property_comparison",
+  "availability",
+  "lease_expirations",
+  "rent_gap",
+  "data_quality",
+] as const;
+
+export type WidgetType = (typeof WIDGET_TYPES)[number];
 
 export interface SourceCitation {
   source_id: string;
@@ -206,4 +233,5 @@ export type AgentSecurityEvent =
   | { type: "budget_info_hallucination"; count: number }
   | { type: "unknown_tool"; name: string }
   | { type: "duplicate_tool_call_id"; id: string }
-  | { type: "budget_exceeded"; requested: number; remaining: number };
+  | { type: "budget_exceeded"; requested: number; remaining: number }
+  | { type: "discarded_tool_calls_on_submit"; count: number };

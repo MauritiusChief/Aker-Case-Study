@@ -411,6 +411,9 @@ export function queryMorningBriefAssistant(
   return postMorningBrief("/assistant/query", {
     question: request.question,
     conversation: request.recent_chat.slice(-8).map(({ role, content }) => ({ role, content })),
+    protected_widget_ids: request.widgets
+      .filter((widget) => widget.pinned)
+      .map((widget) => widget.id),
     brief: {
       findings: request.brief.findings,
       widgets: request.brief.semantic_widgets,

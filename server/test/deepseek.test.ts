@@ -7,7 +7,6 @@ import type { LlmTrace } from "../src/llm-trace.js";
 const request: ModelRequest = {
   messages: [{ role: "user", content: "test" }],
   tools: [],
-  jsonMode: true,
 };
 
 const sampleTool: ModelTool = {
@@ -98,6 +97,67 @@ test("DeepSeek includes tools and tool_choice auto when tools are provided", asy
   assert.equal(body.tool_choice, "auto");
 });
 
+test("DeepSeek forwards required and named tool choices", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const model = new DeepSeekChatModel({
+    apiKey: "test",
+    fetchImpl: async (_input, init) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return okResponse();
+    },
+  });
+  await model.complete({ ...request, tools: [sampleTool], toolChoice: "required" });
+  await model.complete({
+    ...request,
+    tools: [sampleTool],
+    toolChoice: { type: "function", function: { name: "get_availability" } },
+  });
+  assert.equal(bodies[0].tool_choice, "required");
+  assert.deepEqual(bodies[1].tool_choice, {
+    type: "function",
+    function: { name: "get_availability" },
+  });
+});
+
+test("DeepSeek rejects a named choice for an unavailable tool", async () => {
+  const model = new DeepSeekChatModel({
+    apiKey: "test",
+    fetchImpl: async () => {
+      throw new Error("fetch should not run");
+    },
+  });
+  await assert.rejects(
+    model.complete({
+      ...request,
+      tools: [sampleTool],
+      toolChoice: { type: "function", function: { name: "missing" } },
+    }),
+    errorCode("llm_invalid_response")
+  );
+});
+
+test("DeepSeek preserves provider tool calls with null content", async () => {
+  const model = new DeepSeekChatModel({
+    apiKey: "test",
+    fetchImpl: async () => new Response(JSON.stringify({
+      choices: [{
+        message: {
+          content: null,
+          tool_calls: [{
+            id: "submit",
+            type: "function",
+            function: { name: "submit_morning_brief", arguments: '{"findings":[]}' },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }],
+    }), { status: 200 }),
+  });
+  const response = await model.complete(request);
+  assert.equal(response.content, null);
+  assert.equal(response.tool_calls?.[0]?.function.name, "submit_morning_brief");
+});
+
 test("DeepSeek preserves finish_reason from the provider payload", async () => {
   const model = new DeepSeekChatModel({
     apiKey: "test",
@@ -141,7 +201,6 @@ test("DeepSeek traces the exact provider request and response", async () => {
   assert.deepEqual(traces[0].request, {
     model: "trace-model",
     messages: request.messages,
-    response_format: { type: "json_object" },
     temperature: 0.1,
     tools: [sampleTool],
     tool_choice: "auto",

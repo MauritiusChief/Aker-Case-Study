@@ -69,7 +69,7 @@ function stringList(value: unknown, label: string, maxItems: number): string[] {
   return value.map((item, index) => boundedString(item, `${label}[${index}]`, 100));
 }
 
-function parseBrief(value: unknown): PriorBrief {
+function parseBrief(value: unknown, allowedPropertyCodes: string[]): PriorBrief {
   const input = record(value, "brief");
   const widgets = input.widgets ?? input.semantic_widgets;
   if (!Array.isArray(input.findings) || input.findings.length > 5) {
@@ -77,6 +77,68 @@ function parseBrief(value: unknown): PriorBrief {
   }
   if (!Array.isArray(widgets) || widgets.length > 6) {
     throw new RequestError("brief widgets must contain 0 to 6 items");
+  }
+  const parsedWidgets = widgets.map((value, index) => {
+    const widget = record(value, `brief.widgets[${index}]`);
+    const scope = record(widget.scope, `brief.widgets[${index}].scope`);
+    const type = boundedString(widget.type, `brief.widgets[${index}].type`, 50);
+    const widgetTypes: WidgetType[] = [
+      "kpi",
+      "property_comparison",
+      "availability",
+      "lease_expirations",
+      "rent_gap",
+      "data_quality",
+    ];
+    if (!widgetTypes.includes(type as WidgetType)) {
+      throw new RequestError(`brief.widgets[${index}].type is invalid`);
+    }
+    const level = boundedString(scope.level, `brief.widgets[${index}].scope.level`, 20);
+    if (!(["portfolio", "property", "comparison"] as string[]).includes(level)) {
+      throw new RequestError(`brief.widgets[${index}].scope.level is invalid`);
+    }
+    const propertyCodes = stringList(
+      scope.property_codes,
+      `brief.widgets[${index}].scope.property_codes`,
+      allowedPropertyCodes.length
+    );
+    if (propertyCodes.some((code) => !allowedPropertyCodes.includes(code))) {
+      throw new RequestError(`brief.widgets[${index}] contains a property outside the current portfolio`);
+    }
+    if (level === "property" && propertyCodes.length !== 1) {
+      throw new RequestError(`brief.widgets[${index}] property scope requires exactly one property`);
+    }
+    const sourceIds = stringList(
+      widget.source_ids,
+      `brief.widgets[${index}].source_ids`,
+      8
+    );
+    const rawFilters = widget.filters === undefined
+      ? undefined
+      : record(widget.filters, `brief.widgets[${index}].filters`);
+    const filters = rawFilters?.lease_bucket === undefined
+      ? undefined
+      : {
+          lease_bucket: boundedString(
+            rawFilters.lease_bucket,
+            `brief.widgets[${index}].filters.lease_bucket`,
+            30
+          ),
+        };
+    return {
+      id: boundedString(widget.id, `brief.widgets[${index}].id`, 80),
+      type: type as WidgetType,
+      title: boundedString(widget.title, `brief.widgets[${index}].title`, 160),
+      scope: {
+        level: level as SemanticWidget["scope"]["level"],
+        property_codes: [...new Set(propertyCodes)],
+      },
+      source_ids: [...new Set(sourceIds)],
+      ...(filters ? { filters } : {}),
+    } satisfies SemanticWidget;
+  });
+  if (new Set(parsedWidgets.map((widget) => widget.id)).size !== parsedWidgets.length) {
+    throw new RequestError("brief widget ids must be unique");
   }
   return {
     findings: input.findings.map((value, index) => {
@@ -92,58 +154,7 @@ function parseBrief(value: unknown): PriorBrief {
         ),
       };
     }),
-    widgets: widgets.map((value, index) => {
-      const widget = record(value, `brief.widgets[${index}]`);
-      const scope = record(widget.scope, `brief.widgets[${index}].scope`);
-      const type = boundedString(widget.type, `brief.widgets[${index}].type`, 50);
-      const widgetTypes: WidgetType[] = [
-        "kpi",
-        "property_comparison",
-        "availability",
-        "lease_expirations",
-        "rent_gap",
-        "data_quality",
-      ];
-      if (!widgetTypes.includes(type as WidgetType)) {
-        throw new RequestError(`brief.widgets[${index}].type is invalid`);
-      }
-      const level = boundedString(scope.level, `brief.widgets[${index}].scope.level`, 20);
-      if (!(["portfolio", "property", "comparison"] as string[]).includes(level)) {
-        throw new RequestError(`brief.widgets[${index}].scope.level is invalid`);
-      }
-      const sourceIds = stringList(
-        widget.source_ids,
-        `brief.widgets[${index}].source_ids`,
-        8
-      );
-      const rawFilters = widget.filters === undefined
-        ? undefined
-        : record(widget.filters, `brief.widgets[${index}].filters`);
-      const filters = rawFilters?.lease_bucket === undefined
-        ? undefined
-        : {
-            lease_bucket: boundedString(
-              rawFilters.lease_bucket,
-              `brief.widgets[${index}].filters.lease_bucket`,
-              30
-            ),
-          };
-      return {
-        id: boundedString(widget.id, `brief.widgets[${index}].id`, 80),
-        type: type as WidgetType,
-        title: boundedString(widget.title, `brief.widgets[${index}].title`, 160),
-        scope: {
-          level: level as SemanticWidget["scope"]["level"],
-          property_codes: stringList(
-            scope.property_codes,
-            `brief.widgets[${index}].scope.property_codes`,
-            6
-          ),
-        },
-        source_ids: sourceIds,
-        ...(filters ? { filters } : {}),
-      } satisfies SemanticWidget;
-    }),
+    widgets: parsedWidgets,
   };
 }
 
@@ -191,10 +202,15 @@ export function assistantRouter(db: AppDatabase, model: ChatModel): Router {
   router.post("/query", async (req, res, next) => {
     try {
       const body = record(req.body, "body");
-      const brief = parseBrief(body.brief);
+      const { facts, executeTool } = context(db, "portfolio");
+      const brief = parseBrief(body.brief, facts.scope.portfolio_property_codes);
       const conversation = parseConversation(body.conversation ?? body.recent_chat);
       const question = boundedString(body.question, "question", 2_000);
-      const { facts, executeTool } = context(db, "portfolio");
+      const protectedWidgetIds = stringList(
+        body.protected_widget_ids ?? [],
+        "protected_widget_ids",
+        6
+      );
       res.json(
         await answerAssistantQuery(
           model,
@@ -202,7 +218,8 @@ export function assistantRouter(db: AppDatabase, model: ChatModel): Router {
           executeTool,
           brief,
           conversation,
-          question
+          question,
+          protectedWidgetIds
         )
       );
     } catch (error) {
