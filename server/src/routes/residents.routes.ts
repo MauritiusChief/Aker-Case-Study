@@ -1,3 +1,4 @@
+/** Walkthrough note: Read-only resident facts and their normalized rent-roll charges. */
 import { Router } from "express";
 import type { AppDatabase } from "../db/index.js";
 import type { Resident } from "../types.js";

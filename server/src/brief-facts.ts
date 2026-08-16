@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Builds the deterministic, privacy-reduced fact envelope
+ * and candidate set that grounds Morning Brief investigations.
+ */
 import type { AppDatabase } from "./db/index.js";
 import type { AvailabilityOptions } from "./analysis/availability.js";
 import {
@@ -35,6 +39,8 @@ export function splitNetLeaseGap(value: number | null): {
   if (value === null) {
     return { net_loss_to_lease: null, net_gain_to_lease: null };
   }
+  // Exposing both directions, with one explicitly zero, removes the ambiguity
+  // of asking the model to interpret a negative Loss-to-Lease value.
   return {
     net_loss_to_lease: value > 0 ? value : 0,
     net_gain_to_lease: value < 0 ? Math.abs(value) : 0,

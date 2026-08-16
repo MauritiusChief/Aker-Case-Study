@@ -1,3 +1,4 @@
+/** Walkthrough note: Provider-neutral contracts for the grounded agent, tools, facts, and widgets. */
 export type LlmErrorCode =
   | "llm_not_configured"
   | "llm_auth_failed"
@@ -57,7 +58,7 @@ export type SubmissionToolName =
   | "submit_morning_brief"
   | "submit_assistant_answer";
 
-/** Reserved control tool used for application-injected budget updates. */
+/** Reserved control tool for injected budget updates; it is never exposed as model-callable. */
 export type ReservedControlToolName = "_budget_info";
 
 export type MessageToolName =

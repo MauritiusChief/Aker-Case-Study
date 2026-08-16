@@ -1,3 +1,4 @@
+/** Walkthrough note: Read-only unit facts addressed by the property/unit composite key. */
 import { Router } from "express";
 import type { AppDatabase } from "../db/index.js";
 import type { ResidentialUnit } from "../types.js";

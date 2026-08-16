@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Reports snapshot inconsistencies without silently changing
+ * imported facts, including availability reconciliation and relationship checks.
+ */
 import type { AppDatabase } from "../db/index.js";
 import { isIsoDate } from "../lib/dates.js";
 import { queryAvailabilitySummaries, type AvailabilityOptions } from "./availability.js";

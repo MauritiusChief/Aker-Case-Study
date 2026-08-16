@@ -1,3 +1,4 @@
+/** Walkthrough note: Keyboard-focusable inline definitions for business metrics. */
 interface InfoTipProps {
   text: string;
 }

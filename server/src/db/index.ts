@@ -1,8 +1,11 @@
+/** Walkthrough note: Owns the normalized SQLite snapshot schema and connection setup. */
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { DB_PATH } from "../config.js";
 
+// Unit status preserves MODEL, DOWN, and ADMIN cases that resident dates cannot
+// represent; aggregate availability remains derived rather than stored.
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS properties (
   code TEXT PRIMARY KEY,

@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Gives the model bounded CRUD over semantic widget intent;
+ * the application, not the model, supplies and renders business values.
+ */
 import {
   WIDGET_TYPES,
   type ModelTool,
@@ -214,6 +218,8 @@ export class WidgetDraftStore {
   }
 
   clone(): WidgetDraftStore {
+    // Agent rounds mutate a clone and commit only after every call validates,
+    // giving widget changes transaction-like state-machine semantics.
     return new WidgetDraftStore(
       this.state(),
       this.allowedCodes,

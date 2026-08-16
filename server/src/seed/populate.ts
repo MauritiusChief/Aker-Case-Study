@@ -1,3 +1,4 @@
+/** Walkthrough note: Transactionally inserts units, residents, future bookings, and charges. */
 import type { AppDatabase } from "../db/index.js";
 import type { ParsedRentRollFile } from "./rent-roll.js";
 
@@ -41,6 +42,8 @@ export function seedDatabase(db: AppDatabase, files: ParsedRentRollFile[], month
   `);
 
   const transaction = db.transaction((parsedFiles: ParsedRentRollFile[]) => {
+    // Units are inserted before residents, then only current residents are
+    // linked back. Unlinked resident rows remain available as future bookings.
     for (const file of parsedFiles) {
       for (const unit of file.units) {
         insertUnit.run(unit);

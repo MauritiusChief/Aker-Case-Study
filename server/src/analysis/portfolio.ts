@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Composes canonical availability, lease expirations,
+ * exposure, coverage, and quality checks into the portfolio dashboard model.
+ */
 import type { AppDatabase } from "../db/index.js";
 import type { AvailabilitySummary } from "../types.js";
 import type { DataQualityIssue } from "./quality.js";
@@ -62,6 +66,8 @@ export function computePortfolioSummary(
   db: AppDatabase,
   options: AvailabilityOptions & { monthYear: string }
 ): PortfolioSummary {
+  // Reuse the canonical derivation instead of maintaining portfolio-specific
+  // availability totals that could drift from property and assistant views.
   const availability = queryAvailabilitySummaries(db, options);
 
   const cutoff = bookingCutoff(options.asOfDate, options.staleDays);

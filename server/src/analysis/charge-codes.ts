@@ -1,3 +1,4 @@
+/** Walkthrough note: Central mapping for charges that count as scheduled base rent. */
 export const BASE_RENT_CHARGE_CODES: readonly string[] = [
   "RENT",
   "RENTAFF",

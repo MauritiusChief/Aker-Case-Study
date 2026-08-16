@@ -2,6 +2,10 @@
 """
 Convert ResAnalytics "Rent Roll with Lease Charges" .xlsx files to CSV.
 
+Walkthrough note: This stage retains the current/future sections and data rows
+needed by server seeding while normalizing dates; server parsing assigns unit
+statuses and current/future resident semantics.
+
 Keeps:
 - the two-row table header, combined into one CSV row
 - Current/Notice/Vacant Residents section

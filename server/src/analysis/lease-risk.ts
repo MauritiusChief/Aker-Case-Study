@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Builds the occupied-unit risk table, filters, pagination,
+ * lease cohorts, and rent-gap aggregates from the normalized snapshot.
+ */
 import type { AppDatabase } from "../db/index.js";
 import { BOOKED_OCCUPIED_SQL, bookingCutoff, type AvailabilityOptions } from "./availability.js";
 import { BASE_RENT_CHARGE_CODES } from "./charge-codes.js";
@@ -103,6 +107,8 @@ export function computeLossToLease(
   if (marketRent === null || scheduledBaseRent === null || scheduledBaseRent <= 0) {
     return { loss: null, pct: null };
   }
+  // The analytics layer keeps the useful signed value. The assistant boundary
+  // later exposes mutually exclusive non-negative Loss/Gain-to-Lease fields.
   const loss = round2(marketRent - scheduledBaseRent);
   const pct = round2((loss / scheduledBaseRent) * 100);
   return { loss, pct };

@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Visualizes server-derived availability categories; only
+ * chart percentages and the non-revenue presentation grouping are client-side.
+ */
 import { useState } from "react";
 import {
   Bar,

@@ -1,3 +1,4 @@
+/** Walkthrough note: Closed renderer registry for application-materialized semantic widgets. */
 import { KpiCard } from "./KpiCard";
 import { formatCurrency, formatNumber, formatPercent } from "../lib/format";
 import type {
@@ -82,6 +83,8 @@ function RentGapRanking({ widget }: { widget: RentGapRankingWidget }) {
   return (
     <div className="rent-gap-list">
       {widget.data.rows.map((row) => {
+        // Available pairs never have both sides non-zero, so copy can select
+        // loss, gain, or no gap without interpreting a negative amount.
         const loss = row.net_loss_to_lease;
         const gain = row.net_gain_to_lease;
         const unavailable = loss === null || gain === null;

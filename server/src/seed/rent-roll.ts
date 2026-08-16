@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Parses Rent Roll sections into normalized units, current
+ * residents, future residents, and charge rows for one snapshot.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import { parseCsv } from "./csv.js";
@@ -56,6 +60,8 @@ function classifyResident(value: string | null): {
   if (upper === VACANT) {
     return { status: "VACANT", isVacant: true };
   }
+  // MODEL, DOWN, and ADMIN need explicit unit status because they have no
+  // current resident from which availability could otherwise be inferred.
   if (NON_REVENUE_STATUSES.includes(upper)) {
     return { status: upper as UnitStatus, isVacant: true };
   }

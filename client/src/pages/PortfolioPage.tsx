@@ -1,3 +1,4 @@
+/** Walkthrough note: Portfolio landing page for deterministic KPIs, priorities, and quality. */
 import { useEffect, useState } from "react";
 import type { PortfolioSummary } from "../types";
 import { fetchPortfolioSummary } from "../api/client";

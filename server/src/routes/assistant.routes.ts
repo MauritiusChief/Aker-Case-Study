@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Validates HTTP inputs and starts stateless Brief or Q&A
+ * workflows with freshly rebuilt deterministic facts and scoped tools.
+ */
 import { Router, type Response } from "express";
 import type { AppDatabase } from "../db/index.js";
 import { AS_OF_DATE, BOOKING_STALE_DAYS, DEFAULT_MONTH_YEAR } from "../config.js";
@@ -176,6 +180,8 @@ function parseConversation(value: unknown): ConversationMessage[] {
 }
 
 function context(db: AppDatabase, scope: "candidate" | "portfolio") {
+  // The two roles rebuild facts independently and receive different tool
+  // scopes; no prior tool transcript is loaded as conversation memory.
   const facts = buildBriefFacts(db, options);
   return { facts, executeTool: createToolExecutor(db, options, facts, scope) };
 }

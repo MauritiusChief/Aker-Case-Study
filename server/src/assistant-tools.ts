@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Defines scoped, read-only business tools and adapts
+ * deterministic analytics into an LLM-safe vocabulary.
+ */
 import type { AppDatabase } from "./db/index.js";
 import type { AvailabilityOptions } from "./analysis/availability.js";
 import { queryAvailabilitySummaries } from "./analysis/availability.js";
@@ -53,6 +57,8 @@ function splitAverageLeaseGap(value: number | null): {
   };
 }
 
+// The model sees both directions as a mutually exclusive non-negative pair.
+// An explicit zero is a semantic cue, avoiding ambiguous "negative loss" text.
 function modelLeaseGapDefinitions(definitions: Record<string, string>): Record<string, string> {
   const hidden = new Set([
     "loss_to_lease",

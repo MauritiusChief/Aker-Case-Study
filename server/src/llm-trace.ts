@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Atomic file store and reader for full diagnostic LLM
+ * exchanges; trace persistence is separate from assistant workspace memory.
+ */
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";

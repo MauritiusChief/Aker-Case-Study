@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Aggregates the signed market-rent versus scheduled-rent gap
+ * by portfolio, property, and unit type for deterministic downstream use.
+ */
 import type { AppDatabase } from "../db/index.js";
 import type { AvailabilityOptions } from "./availability.js";
 import { queryLeaseRiskRows } from "./lease-risk.js";

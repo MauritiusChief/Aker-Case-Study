@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Shared bounded state machine for investigation, citations,
+ * widget transactions, dynamic budget control, and terminal submission.
+ */
 import { randomUUID } from "node:crypto";
 import { stringify as stringifyYaml } from "yaml";
 import {
@@ -130,6 +134,9 @@ export async function runGroundedAgent(
       }`,
     },
   ];
+  // This transcript is run-local and is not returned as conversation memory.
+  // Callers receive submission/source/widget metadata, while full provider
+  // exchanges may separately be written to diagnostic traces.
 
   let modelAttempts = 0;
   let toolRounds = 0;
@@ -217,6 +224,9 @@ export async function runGroundedAgent(
     if (submissionCalls.length > 1) invalid("Only one submission tool call is allowed");
 
     if (submissionCalls.length === 1) {
+      // A submission is the terminal transition. Validated widget mutations
+      // may commit atomically, while same-response reads/business calls cannot
+      // race with or alter the submitted result.
       const submission = parseArgumentsObject(submissionCalls[0].function.arguments);
       const discardedBusiness = calls.filter((call) => businessToolNames.has(call.function.name));
       const widgetMutations = calls.filter(
@@ -313,6 +323,9 @@ export async function runGroundedAgent(
 
     if (businessCalls.length > 0) toolRounds += 1;
     widgetToolCalls += widgetCalls.length;
+    // Budget is injected as a virtual tool exchange so its changing value has
+    // the right place in message time. Putting it only in the system prompt
+    // would make a dynamic value look fixed before the conversation began.
     const budgetCall = createBudgetInfoCall();
     messages.push({
       role: "assistant",

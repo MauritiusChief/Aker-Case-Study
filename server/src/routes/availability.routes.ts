@@ -1,3 +1,4 @@
+/** Walkthrough note: Read-only endpoint for the canonical derived availability summaries. */
 import { Router } from "express";
 import type { AppDatabase } from "../db/index.js";
 import { AS_OF_DATE, BOOKING_STALE_DAYS } from "../config.js";

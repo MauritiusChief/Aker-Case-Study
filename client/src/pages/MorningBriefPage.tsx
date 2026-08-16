@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Browser-owned Morning Brief workspace with generation,
+ * follow-up Q&A, widget pinning, cancellation, and revision guards.
+ */
 import { FormEvent, useEffect, useRef, useState } from "react";
 import {
   generateMorningBrief,
@@ -239,6 +243,8 @@ export function MorningBriefPage() {
   const activeRequest = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    // Persist the full brief, chat, rendered widgets, snapshot, and revision in
+    // browser storage. Agent tool transcripts deliberately stay out of this store.
     const workspace: PersistedWorkspace = {
       version: STORAGE_VERSION,
       brief,

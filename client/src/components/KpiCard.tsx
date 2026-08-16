@@ -1,3 +1,4 @@
+/** Walkthrough note: Reusable KPI surface with optional context and metric definition. */
 import type { ReactNode } from "react";
 import { InfoTip } from "./InfoTip";
 

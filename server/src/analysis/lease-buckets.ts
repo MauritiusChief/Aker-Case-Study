@@ -1,3 +1,4 @@
+/** Walkthrough note: Deterministically assigns lease ends to shared expiration cohorts. */
 import { daysBetween, isIsoDate } from "../lib/dates.js";
 
 export interface LeaseExpirationBuckets {

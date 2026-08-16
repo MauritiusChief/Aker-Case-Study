@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Imports property identity only from Unit Availability;
+ * report aggregates are deliberately ignored in favor of derived metrics.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import { parseCsv } from "./csv.js";
@@ -9,6 +13,8 @@ export interface ParsedProperty {
 }
 
 export function parseUnitAvailabilityCsv(text: string): ParsedProperty | null {
+  // Return only the first non-header property's identity; availability values
+  // in later columns or rows are intentionally not persisted.
   const rows = parseCsv(text);
   for (const row of rows) {
     if (row.length === 0) continue;

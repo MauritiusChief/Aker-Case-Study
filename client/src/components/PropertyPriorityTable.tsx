@@ -1,3 +1,4 @@
+/** Walkthrough note: Links the portfolio priority ranking to property drill-downs. */
 import { Link } from "react-router-dom";
 import type { PropertyPriorityRow } from "../types";
 import { formatCurrency, formatPercent } from "../lib/format";

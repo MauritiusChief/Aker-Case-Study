@@ -1,3 +1,4 @@
+/** Walkthrough note: Renders deterministic snapshot validation findings and their scope. */
 import type { DataQualityIssue } from "../types";
 
 interface DataQualityPanelProps {

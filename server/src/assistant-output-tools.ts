@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Terminal result tools replace free-form final JSON with
+ * narrow, dynamically grounded schemas for briefs and follow-up answers.
+ */
 import {
   type BriefFacts,
   type ModelTool,

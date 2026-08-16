@@ -1,3 +1,4 @@
+/** Walkthrough note: Shared display formatting for snapshot dates, CAD values, and KPIs. */
 export function toDisplayDate(value: string): string {
   const match = /^(\d{4})\/(\d{2})\/(\d{2})$/.exec(value);
   if (!match) return value;
@@ -24,6 +25,8 @@ export function presentLeaseGap(value: number, qualifier?: "Net" | "Average"): {
   label: string;
   amount: number;
 } {
+  // Non-LLM analytics retain a signed gap; the UI converts its direction into
+  // positive Loss-to-Lease or Gain-to-Lease terminology at presentation time.
   const terminology = value > 0
     ? "Loss-to-Lease"
     : value < 0

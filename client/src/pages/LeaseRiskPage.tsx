@@ -1,3 +1,4 @@
+/** Walkthrough note: Filterable, paged lease cohort and rent-gap investigation workspace. */
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { LeaseBucket, LeaseRiskSummary } from "../types";

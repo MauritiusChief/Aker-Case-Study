@@ -1,3 +1,4 @@
+/** Walkthrough note: Displays deterministic lease-expiration cohorts from the snapshot. */
 import type { LeaseExpirationBuckets } from "../types";
 import { formatNumber } from "../lib/format";
 

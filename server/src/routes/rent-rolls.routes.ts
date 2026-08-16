@@ -1,3 +1,4 @@
+/** Walkthrough note: Read-only access to normalized monthly resident charge rows. */
 import { Router } from "express";
 import type { AppDatabase } from "../db/index.js";
 import type { RentRoll } from "../types.js";

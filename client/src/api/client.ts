@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Typed API transport, runtime Morning Brief validation, and
+ * deterministic materialization of semantic widgets into display data.
+ */
 import type {
   LeaseRiskSummary,
   PortfolioSummary,
@@ -84,6 +88,8 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function isLeaseGapPair(value: Record<string, unknown>, nullable: boolean): boolean {
+  // The LLM contract makes direction explicit: both values are non-negative
+  // and at most one may be non-zero, so "negative loss" is never required.
   const loss = value.net_loss_to_lease;
   const gain = value.net_gain_to_lease;
   if (nullable && loss === null && gain === null) return true;
@@ -237,6 +243,8 @@ function scopedCandidates(facts: MorningBriefFacts, widget: MorningBriefSemantic
 }
 
 function toClientWidget(widget: MorningBriefSemanticWidget, facts: MorningBriefFacts): MorningBriefWidget {
+  // The model chooses widget intent through CRUD tools, but never supplies the
+  // displayed numbers. Values are materialized from validated deterministic facts.
   const candidates = scopedCandidates(facts, widget);
   const base = { id: widget.id, title: widget.title, pinned: false };
   switch (widget.type) {
@@ -420,6 +428,8 @@ export function queryMorningBriefAssistant(
   request: MorningBriefAssistantRequest,
   signal?: AbortSignal
 ): Promise<MorningBriefAssistantResponse> {
+  // Send the current question, recent chat, brief findings, semantic widget
+  // intent, and pinned ids; prior tool calls/results are never replayed.
   return postMorningBrief("/assistant/query", {
     question: request.question,
     conversation: request.recent_chat.slice(-8).map(({ role, content }) => ({ role, content })),

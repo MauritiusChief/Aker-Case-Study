@@ -1,3 +1,4 @@
+/** Walkthrough note: Serves portfolio rent-gap aggregates from occupied-unit analytics. */
 import { Router } from "express";
 import type { AppDatabase } from "../db/index.js";
 import { AS_OF_DATE, BOOKING_STALE_DAYS, DEFAULT_MONTH_YEAR } from "../config.js";

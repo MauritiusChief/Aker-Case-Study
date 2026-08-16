@@ -1,3 +1,4 @@
+/** Walkthrough note: Exposes property identity, units, statuses, and deterministic drill-downs. */
 import { Router } from "express";
 import type { AppDatabase } from "../db/index.js";
 import type { Property } from "../types.js";

@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: This is the canonical availability classification used by
+ * portfolio, property, quality, API, and assistant flows.
+ */
 import type { AppDatabase } from "../db/index.js";
 import type { AvailabilitySummary } from "../types.js";
 import { addDays } from "../lib/dates.js";
@@ -43,6 +47,8 @@ export function queryAvailabilitySummaries(
   db: AppDatabase,
   options: AvailabilityOptions
 ): AvailabilitySummary[] {
+  // Availability is derived from normalized unit/resident facts rather than
+  // stored report totals, keeping every consumer on one source of truth.
   const cutoff = bookingCutoff(options.asOfDate, options.staleDays);
 
   const rows = db
@@ -58,6 +64,8 @@ export function queryAvailabilitySummaries(
          SUM(CASE WHEN u.status = 'VACANT' AND NOT ${BOOKED_VACANT_SQL} THEN 1 ELSE 0 END) AS vacant_unrented,
          SUM(CASE WHEN u.status = 'OCCUPIED' AND r.move_out_date IS NOT NULL AND ${BOOKED_OCCUPIED_SQL} THEN 1 ELSE 0 END) AS notice_rented,
          SUM(CASE WHEN u.status = 'OCCUPIED' AND r.move_out_date IS NOT NULL AND NOT ${BOOKED_OCCUPIED_SQL} THEN 1 ELSE 0 END) AS notice_unrented,
+         -- Explicit statuses preserve non-revenue/admin cases that cannot be
+         -- inferred from resident dates alone.
          SUM(CASE WHEN u.status = 'MODEL' THEN 1 ELSE 0 END) AS model,
          SUM(CASE WHEN u.status = 'DOWN' THEN 1 ELSE 0 END) AS down,
          SUM(CASE WHEN u.status = 'ADMIN' THEN 1 ELSE 0 END) AS admin

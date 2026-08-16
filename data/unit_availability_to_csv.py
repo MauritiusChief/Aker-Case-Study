@@ -2,6 +2,10 @@
 """
 Convert ResAnalytics "Unit Availability" .xlsx files to CSV.
 
+Walkthrough note: The converter preserves report rows for inspection, but the
+server imports only property identity and derives availability from normalized
+unit/resident facts to maintain a single source of truth.
+
 Keeps:
 - the two-row table header, combined into one CSV row
 - property data rows

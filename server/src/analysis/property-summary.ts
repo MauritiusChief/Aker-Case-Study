@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: Produces the property drill-down by composing shared
+ * availability and lease-risk calculations with property charge details.
+ */
 import type { AppDatabase } from "../db/index.js";
 import type { AvailabilitySummary } from "../types.js";
 import {

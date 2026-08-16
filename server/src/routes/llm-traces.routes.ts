@@ -1,3 +1,4 @@
+/** Walkthrough note: Escaped diagnostic HTML for listing and inspecting complete LLM traces. */
 import { Router } from "express";
 import type {
   LlmTrace,

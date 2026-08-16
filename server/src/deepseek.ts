@@ -1,3 +1,7 @@
+/**
+ * Walkthrough note: OpenAI-compatible DeepSeek adapter with timeout/error
+ * mapping, structured tool-call parsing, and optional diagnostic tracing.
+ */
 import {
   AKER_LLM_DEBUG,
   DEEPSEEK_API_KEY,
@@ -171,6 +175,9 @@ export class DeepSeekChatModel implements ChatModel {
     const traceId = createTraceId();
     const startedAtMs = Date.now();
     const startedAt = new Date(startedAtMs).toISOString();
+    // Traces intentionally capture the complete exchange for debugging. They
+    // are separate from the brief/Q&A workspace and are never replayed as its
+    // persisted LLM conversation context.
     const persistTrace = async (
       outcome: LlmTraceOutcome,
       capturedResponse: LlmTraceResponse | null,

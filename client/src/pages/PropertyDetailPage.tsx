@@ -1,3 +1,4 @@
+/** Walkthrough note: Property drill-down for all availability states, leases, and charges. */
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { PropertySummary } from "../types";
