@@ -1,12 +1,20 @@
 import type { AppDatabase } from "./db/index.js";
 import type { AvailabilityOptions } from "./analysis/availability.js";
 import { queryAvailabilitySummaries } from "./analysis/availability.js";
-import { computePropertySummary } from "./analysis/property-summary.js";
+import { computePropertySummary, type PropertyMetrics } from "./analysis/property-summary.js";
 import { computePortfolioSummary } from "./analysis/portfolio.js";
-import { computeLeaseRiskSummary, LEASE_BUCKETS } from "./analysis/lease-risk.js";
-import { computeRentGapSummary } from "./analysis/rent-gap.js";
+import {
+  computeLeaseRiskSummary,
+  LEASE_BUCKETS,
+  type LeaseRiskMetrics,
+} from "./analysis/lease-risk.js";
+import {
+  computeRentGapSummary,
+  type RentGapGroup,
+  type RentGapMetrics,
+} from "./analysis/rent-gap.js";
 import { runDataQualityChecks } from "./analysis/quality.js";
-import { summarizeDataQuality } from "./brief-facts.js";
+import { splitNetLeaseGap, summarizeDataQuality } from "./brief-facts.js";
 import type {
   AssistantToolName,
   BriefFacts,
@@ -31,6 +39,118 @@ export type ToolExecutor = (
   argumentsJson: string
 ) => unknown;
 export type ToolScope = "candidate" | "portfolio";
+
+function splitAverageLeaseGap(value: number | null): {
+  average_loss_to_lease: number | null;
+  average_gain_to_lease: number | null;
+} {
+  if (value === null) {
+    return { average_loss_to_lease: null, average_gain_to_lease: null };
+  }
+  return {
+    average_loss_to_lease: value > 0 ? value : 0,
+    average_gain_to_lease: value < 0 ? Math.abs(value) : 0,
+  };
+}
+
+function modelLeaseGapDefinitions(definitions: Record<string, string>): Record<string, string> {
+  const hidden = new Set([
+    "loss_to_lease",
+    "loss_to_lease_pct",
+    "positive_loss_to_lease",
+    "premium",
+  ]);
+  return {
+    ...Object.fromEntries(Object.entries(definitions).filter(([key]) => !hidden.has(key))),
+    net_loss_to_lease:
+      "Positive magnitude of the net amount by which Market Rent exceeds Scheduled Base Rent; zero when the net direction is gain.",
+    net_gain_to_lease:
+      "Positive magnitude of the net amount by which Scheduled Base Rent exceeds Market Rent; zero when the net direction is loss.",
+    average_loss_to_lease:
+      "Positive average Loss-to-Lease magnitude; mutually exclusive with average_gain_to_lease.",
+    average_gain_to_lease:
+      "Positive average Gain-to-Lease magnitude; mutually exclusive with average_loss_to_lease.",
+    loss_to_lease_unit_count: "Comparable units whose Market Rent exceeds Scheduled Base Rent.",
+    gain_to_lease_unit_count: "Comparable units whose Scheduled Base Rent exceeds Market Rent.",
+  };
+}
+
+function modelPropertyMetrics(metrics: PropertyMetrics) {
+  const {
+    total_loss_to_lease,
+    avg_loss_to_lease,
+    positive_loss_to_lease_count,
+    premium_count,
+    ...rest
+  } = metrics;
+  return {
+    ...rest,
+    ...splitNetLeaseGap(total_loss_to_lease),
+    ...splitAverageLeaseGap(avg_loss_to_lease),
+    loss_to_lease_unit_count: positive_loss_to_lease_count,
+    gain_to_lease_unit_count: premium_count,
+  };
+}
+
+function modelLeaseRiskMetrics(metrics: LeaseRiskMetrics) {
+  const {
+    total_loss_to_lease,
+    positive_loss_to_lease_count,
+    premium_count,
+    ...rest
+  } = metrics;
+  return {
+    ...rest,
+    ...splitNetLeaseGap(total_loss_to_lease),
+    loss_to_lease_unit_count: positive_loss_to_lease_count,
+    gain_to_lease_unit_count: premium_count,
+  };
+}
+
+function modelRentGapMetrics(metrics: RentGapMetrics) {
+  const {
+    total_loss_to_lease,
+    avg_loss_to_lease,
+    positive_loss_to_lease_count,
+    positive_loss_to_lease_amount: _positiveLossToLeaseAmount,
+    premium_count,
+    ...rest
+  } = metrics;
+  return {
+    ...rest,
+    ...splitNetLeaseGap(total_loss_to_lease),
+    ...splitAverageLeaseGap(avg_loss_to_lease),
+    loss_to_lease_unit_count: positive_loss_to_lease_count,
+    gain_to_lease_unit_count: premium_count,
+  };
+}
+
+function modelRentGapGroup(group: RentGapGroup) {
+  const {
+    total_loss_to_lease,
+    avg_loss_to_lease,
+    positive_count,
+    premium_count,
+    ...rest
+  } = group;
+  return {
+    ...rest,
+    ...splitNetLeaseGap(total_loss_to_lease),
+    ...splitAverageLeaseGap(avg_loss_to_lease),
+    loss_to_lease_unit_count: positive_count,
+    gain_to_lease_unit_count: premium_count,
+  };
+}
+
+function modelRentGapComparison(group: RentGapGroup | undefined) {
+  return {
+    comparable_units: group?.comparable_units ?? 0,
+    ...splitNetLeaseGap(group?.total_loss_to_lease ?? null),
+    ...splitAverageLeaseGap(group?.avg_loss_to_lease ?? null),
+    loss_to_lease_unit_count: group?.positive_count ?? 0,
+    gain_to_lease_unit_count: group?.premium_count ?? 0,
+  };
+}
 
 function propertySchema(candidateCodes: string[]): Record<string, unknown> {
   return { type: "string", enum: candidateCodes };
@@ -91,7 +211,7 @@ export function buildAssistantTools(
     ),
     tool(
       "get_lease_risk",
-      "Read aggregate lease-expiration and loss-to-lease risk without resident records.",
+      "Read aggregate lease-expiration and Loss-to-Lease or Gain-to-Lease risk without resident records.",
       {
         property_code: propertySchema(codes),
         lease_bucket: { type: "string", enum: LEASE_BUCKETS },
@@ -99,7 +219,7 @@ export function buildAssistantTools(
     ),
     tool(
       "get_rent_gap",
-      "Read aggregate market-rent versus scheduled-base-rent calculations.",
+      "Read aggregate market-rent versus scheduled-base-rent Loss-to-Lease and Gain-to-Lease calculations.",
       { property_code: propertySchema(codes) }
     ),
     tool(
@@ -181,11 +301,11 @@ export function createToolExecutor(
         as_of_date: summary.as_of_date,
         month_year: summary.month_year,
         property: summary.property,
-        metrics: summary.metrics,
+        metrics: modelPropertyMetrics(summary.metrics),
         availability: summary.availability,
         lease_expiration_buckets: summary.lease_expiration_buckets,
         charge_codes: summary.charge_codes,
-        definitions: summary.definitions,
+        definitions: modelLeaseGapDefinitions(summary.definitions),
         coverage: summary.coverage,
         data_quality: summarizeDataQuality(summary.data_quality),
       };
@@ -205,17 +325,11 @@ export function createToolExecutor(
           .filter((row) => propertyCodes.includes(row.property_code))
           .map((row) => ({
             ...row,
-            total_loss_to_lease:
-              rentByProperty.get(row.property_code)?.total_loss_to_lease ?? null,
-            comparable_units:
-              rentByProperty.get(row.property_code)?.comparable_units ?? 0,
+            ...modelRentGapComparison(rentByProperty.get(row.property_code)),
           })),
         portfolio_distribution: portfolio.metrics.property_priority.map((row) => ({
           ...row,
-          total_loss_to_lease:
-            rentByProperty.get(row.property_code)?.total_loss_to_lease ?? null,
-          comparable_units:
-            rentByProperty.get(row.property_code)?.comparable_units ?? 0,
+          ...modelRentGapComparison(rentByProperty.get(row.property_code)),
         })),
         coverage: facts.coverage,
       };
@@ -266,8 +380,8 @@ export function createToolExecutor(
         as_of_date: summary.as_of_date,
         month_year: summary.month_year,
         filters: summary.filters,
-        metrics: summary.metrics,
-        definitions: summary.definitions,
+        metrics: modelLeaseRiskMetrics(summary.metrics),
+        definitions: modelLeaseGapDefinitions(summary.definitions),
         coverage: summary.coverage,
         data_quality: summarizeDataQuality(
           propertyCode
@@ -289,15 +403,17 @@ export function createToolExecutor(
         month_year: summary.month_year,
         filters: propertyCode ? { property_code: propertyCode } : {},
         scope: propertyCode ? "property" : "portfolio",
-        ...(propertyCode ? { property } : { metrics: summary.metrics }),
-        portfolio_metrics: summary.metrics,
+        ...(propertyCode
+          ? { property: property ? modelRentGapGroup(property) : null }
+          : { metrics: modelRentGapMetrics(summary.metrics) }),
+        portfolio_metrics: modelRentGapMetrics(summary.metrics),
         by_property: propertyCode
           ? []
           : summary.by_property.filter((row) =>
               allowedCodes.includes(row.key)
-            ),
-        by_unit_type: propertyCode ? [] : summary.by_unit_type,
-        definitions: summary.definitions,
+            ).map(modelRentGapGroup),
+        by_unit_type: propertyCode ? [] : summary.by_unit_type.map(modelRentGapGroup),
+        definitions: modelLeaseGapDefinitions(summary.definitions),
         coverage: summary.coverage,
       };
     }

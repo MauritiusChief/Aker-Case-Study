@@ -4,7 +4,13 @@ import type { PropertySummary } from "../types";
 import { fetchPropertySummary } from "../api/client";
 import { DataQualityPanel } from "../components/DataQualityPanel";
 import { LeaseExpirationBuckets } from "../components/LeaseExpirationBuckets";
-import { formatCurrency, formatNumber, formatPercent, toDisplayDate } from "../lib/format";
+import {
+  formatCurrency,
+  formatNumber,
+  formatPercent,
+  presentLeaseGap,
+  toDisplayDate,
+} from "../lib/format";
 
 const AVAILABILITY_FIELDS: { key: string; label: string }[] = [
   { key: "occupied_no_notice", label: "Occupied (no notice)" },
@@ -39,6 +45,10 @@ export function PropertyDetailPage() {
 
   const { metrics, availability, charge_codes } = data;
   const totalCharge = charge_codes.reduce((sum, c) => sum + c.amount, 0);
+  const totalLeaseGap = presentLeaseGap(metrics.total_loss_to_lease, "Net");
+  const averageLeaseGap = metrics.avg_loss_to_lease === null
+    ? null
+    : presentLeaseGap(metrics.avg_loss_to_lease, "Average");
 
   return (
     <div className="property-detail">
@@ -117,7 +127,7 @@ export function PropertyDetailPage() {
       <div className="two-col">
         <div className="chart-card">
           <div className="card-header">
-            <h3>Rent Gap (Loss-to-lease)</h3>
+            <h3>Rent Gap</h3>
           </div>
           <div className="kpi-grid kpi-grid-3">
             <div className="kpi-card">
@@ -125,22 +135,20 @@ export function PropertyDetailPage() {
               <div className="kpi-value">{formatCurrency(metrics.total_base_rent)}</div>
             </div>
             <div className="kpi-card">
-              <div className="kpi-label">Total Loss-to-lease</div>
-              <div className="kpi-value">{formatCurrency(metrics.total_loss_to_lease)}</div>
+              <div className="kpi-label">{totalLeaseGap.label}</div>
+              <div className="kpi-value">{formatCurrency(totalLeaseGap.amount)}</div>
             </div>
             <div className="kpi-card">
-              <div className="kpi-label">Avg Loss-to-lease</div>
+              <div className="kpi-label">{averageLeaseGap?.label ?? "Average Rent Gap"}</div>
               <div className="kpi-value">
-                {metrics.avg_loss_to_lease !== null
-                  ? formatCurrency(metrics.avg_loss_to_lease)
-                  : "—"}
+                {averageLeaseGap ? formatCurrency(averageLeaseGap.amount) : "—"}
               </div>
             </div>
           </div>
           <p className="card-subtitle" style={{ marginTop: 8 }}>
             {formatNumber(metrics.comparable_units)} comparable units ·{" "}
-            {formatNumber(metrics.positive_loss_to_lease_count)} positive gap ·{" "}
-            {formatNumber(metrics.premium_count)} premium · coverage{" "}
+            {formatNumber(metrics.positive_loss_to_lease_count)} Loss-to-Lease units ·{" "}
+            {formatNumber(metrics.premium_count)} Gain-to-Lease units · coverage{" "}
             {formatPercent(data.coverage.loss_to_lease_coverage)}
           </p>
         </div>

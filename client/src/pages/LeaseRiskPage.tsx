@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { LeaseBucket, LeaseRiskSummary } from "../types";
 import { fetchLeaseRisks, type LeaseRiskQuery } from "../api/client";
-import { formatCurrency, formatNumber, formatPercent, toDisplayDate } from "../lib/format";
+import {
+  formatCurrency,
+  formatNumber,
+  formatPercent,
+  presentLeaseGap,
+  toDisplayDate,
+} from "../lib/format";
 import { InfoTip } from "../components/InfoTip";
 
 const BUCKET_LABELS: Record<LeaseBucket, string> = {
@@ -92,6 +98,7 @@ export function LeaseRiskPage() {
   }
 
   const { metrics } = data;
+  const totalLeaseGap = presentLeaseGap(metrics.total_loss_to_lease, "Net");
   return (
     <div className="lease-risk">
       <div className="page-header">
@@ -172,7 +179,10 @@ export function LeaseRiskPage() {
         </label>
 
         <label className="filter-field">
-          <span>Loss-to-lease min ($)</span>
+          <span>
+            Signed rent gap min ($)
+            <InfoTip text="Signed filter value: positive selects Loss-to-Lease; negative selects Gain-to-Lease." />
+          </span>
           <input
             type="number"
             value={draft.rent_gap_min}
@@ -181,7 +191,10 @@ export function LeaseRiskPage() {
         </label>
 
         <label className="filter-field">
-          <span>Loss-to-lease max ($)</span>
+          <span>
+            Signed rent gap max ($)
+            <InfoTip text="Signed filter value: positive selects Loss-to-Lease; negative selects Gain-to-Lease." />
+          </span>
           <input
             type="number"
             value={draft.rent_gap_max}
@@ -223,22 +236,22 @@ export function LeaseRiskPage() {
         </div>
         <div className="kpi-card">
           <div className="kpi-label">
-            Total Loss-to-lease
-            <InfoTip text="Sum of loss_to_lease = market_rent - scheduled_base_rent across comparable occupied units (units with missing or zero base rent are excluded)." />
+            {totalLeaseGap.label}
+            <InfoTip text="Net market_rent - scheduled_base_rent across comparable occupied units. A positive net amount is Loss-to-Lease; a negative net amount is presented as a positive Gain-to-Lease." />
           </div>
-          <div className="kpi-value">{formatCurrency(metrics.total_loss_to_lease)}</div>
+          <div className="kpi-value">{formatCurrency(totalLeaseGap.amount)}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">
-            Positive Gap Units
-            <InfoTip text="Occupied units whose Market Rent exceeds their Scheduled Base Rent (loss_to_lease > 0), i.e. rented below market." />
+            Loss-to-Lease Units
+            <InfoTip text="Occupied units whose Market Rent exceeds their Scheduled Base Rent, i.e. rented below market." />
           </div>
           <div className="kpi-value">{formatNumber(metrics.positive_loss_to_lease_count)}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">
-            Negative Gap Units
-            <InfoTip text="Occupied units whose Market Rent is below their Scheduled Base Rent (loss_to_lease < 0), i.e. rented above market." />
+            Gain-to-Lease Units
+            <InfoTip text="Occupied units whose Scheduled Base Rent exceeds their Market Rent, i.e. rented above market." />
           </div>
           <div className="kpi-value">{formatNumber(metrics.premium_count)}</div>
         </div>
@@ -286,39 +299,44 @@ export function LeaseRiskPage() {
                 <th className="num">Market Rent</th>
                 <th className="num">Base Rent</th>
                 <th className="num">
-                  Loss-to-lease
-                  <InfoTip text="market_rent - scheduled_base_rent for each unit; blank when base rent is missing or zero." />
+                  Lease gap
+                  <InfoTip text="Market Rent versus Scheduled Base Rent. Below-market units show Loss-to-Lease; above-market units show Gain-to-Lease. Blank when base rent is missing or zero." />
                 </th>
                 <th className="num">Balance</th>
                 <th>Availability</th>
               </tr>
             </thead>
             <tbody>
-              {data.rows.map((row) => (
-                <tr key={`${row.property_code}-${row.unit_code}-${row.resident_id}`}>
-                  <td>
-                    <Link to={`/properties/${row.property_code}`} className="row-link">
-                      {row.property_name ?? row.property_code}
-                    </Link>
-                    <span className="unit-suffix"> / {row.unit_code}</span>
-                  </td>
-                  <td>{row.lease_end_date ? toDisplayDate(row.lease_end_date) : "—"}</td>
-                  <td>{row.move_out_date ? toDisplayDate(row.move_out_date) : "—"}</td>
-                  <td className="num">
-                    {row.market_rent !== null ? formatCurrency(row.market_rent) : "—"}
-                  </td>
-                  <td className="num">{formatCurrency(row.scheduled_base_rent)}</td>
-                  <td className="num">
-                    {row.loss_to_lease !== null
-                      ? `${formatCurrency(row.loss_to_lease)} (${formatPercent(row.loss_to_lease_pct ?? 0, 1)})`
-                      : "—"}
-                  </td>
-                  <td className="num">
-                    {row.balance !== null ? formatCurrency(row.balance) : "—"}
-                  </td>
-                  <td>{row.availability_status.replace(/_/g, " ")}</td>
-                </tr>
-              ))}
+              {data.rows.map((row) => {
+                const leaseGap = row.loss_to_lease === null
+                  ? null
+                  : presentLeaseGap(row.loss_to_lease);
+                return (
+                  <tr key={`${row.property_code}-${row.unit_code}-${row.resident_id}`}>
+                    <td>
+                      <Link to={`/properties/${row.property_code}`} className="row-link">
+                        {row.property_name ?? row.property_code}
+                      </Link>
+                      <span className="unit-suffix"> / {row.unit_code}</span>
+                    </td>
+                    <td>{row.lease_end_date ? toDisplayDate(row.lease_end_date) : "—"}</td>
+                    <td>{row.move_out_date ? toDisplayDate(row.move_out_date) : "—"}</td>
+                    <td className="num">
+                      {row.market_rent !== null ? formatCurrency(row.market_rent) : "—"}
+                    </td>
+                    <td className="num">{formatCurrency(row.scheduled_base_rent)}</td>
+                    <td className="num">
+                      {leaseGap
+                        ? `${leaseGap.label}: ${formatCurrency(leaseGap.amount)} (${formatPercent(Math.abs(row.loss_to_lease_pct ?? 0), 1)})`
+                        : "—"}
+                    </td>
+                    <td className="num">
+                      {row.balance !== null ? formatCurrency(row.balance) : "—"}
+                    </td>
+                    <td>{row.availability_status.replace(/_/g, " ")}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

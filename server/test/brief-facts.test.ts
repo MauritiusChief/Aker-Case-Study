@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildBriefFactsFromSummaries } from "../src/brief-facts.js";
+import { buildBriefFactsFromSummaries, splitNetLeaseGap } from "../src/brief-facts.js";
 import type { PortfolioSummary } from "../src/analysis/portfolio.js";
 import type { RentGapSummary } from "../src/analysis/rent-gap.js";
 import type { AvailabilitySummary } from "../src/types.js";
@@ -29,6 +29,25 @@ function availability(propertyCode: string, overrides: Partial<AvailabilitySumma
     ...overrides,
   };
 }
+
+test("splitNetLeaseGap exposes mutually exclusive non-negative values", () => {
+  assert.deepEqual(splitNetLeaseGap(200), {
+    net_loss_to_lease: 200,
+    net_gain_to_lease: 0,
+  });
+  assert.deepEqual(splitNetLeaseGap(-100), {
+    net_loss_to_lease: 0,
+    net_gain_to_lease: 100,
+  });
+  assert.deepEqual(splitNetLeaseGap(0), {
+    net_loss_to_lease: 0,
+    net_gain_to_lease: 0,
+  });
+  assert.deepEqual(splitNetLeaseGap(null), {
+    net_loss_to_lease: null,
+    net_gain_to_lease: null,
+  });
+});
 
 test("BriefFacts deterministically selects leaders and strips quality identifiers", () => {
   const availabilityRows = [availability("P1", {}), availability("P2", { avail: 4, down: 1 })];
@@ -148,6 +167,10 @@ test("BriefFacts deterministically selects leaders and strips quality identifier
     "down_units",
     "data_quality",
   ]);
+  assert.equal(facts.portfolio.net_loss_to_lease, 500);
+  assert.equal(facts.portfolio.net_gain_to_lease, 0);
+  assert.equal(facts.portfolio.loss_to_lease_unit_count, 2);
+  assert.equal(facts.portfolio.gain_to_lease_unit_count, 0);
   assert.equal(JSON.stringify(facts).includes("secret-resident"), false);
   assert.equal(JSON.stringify(facts).includes("Resident-specific message"), false);
 });

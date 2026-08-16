@@ -177,7 +177,10 @@ export interface BriefCandidate {
     leased_pct: number;
     vacant_unrented_exposure: number;
     expiring_60: number;
-    total_loss_to_lease: number | null;
+    net_loss_to_lease: number | null;
+    net_gain_to_lease: number | null;
+    loss_to_lease_unit_count: number;
+    gain_to_lease_unit_count: number;
     comparable_units: number;
   };
 }
@@ -204,8 +207,10 @@ export interface BriefFacts {
     available_units: number;
     vacant_unrented_exposure: number;
     expiring_60_days: number;
-    total_loss_to_lease: number;
-    positive_loss_to_lease_count: number;
+    net_loss_to_lease: number;
+    net_gain_to_lease: number;
+    loss_to_lease_unit_count: number;
+    gain_to_lease_unit_count: number;
   };
   coverage: Record<string, number>;
   data_quality: QualityFacts;

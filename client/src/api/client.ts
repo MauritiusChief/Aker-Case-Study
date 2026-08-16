@@ -83,6 +83,15 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function isLeaseGapPair(value: Record<string, unknown>, nullable: boolean): boolean {
+  const loss = value.net_loss_to_lease;
+  const gain = value.net_gain_to_lease;
+  if (nullable && loss === null && gain === null) return true;
+  return isFiniteNumber(loss) && loss >= 0 &&
+    isFiniteNumber(gain) && gain >= 0 &&
+    !(loss > 0 && gain > 0);
+}
+
 function isFinding(value: unknown): value is MorningBriefFinding {
   return (
     isRecord(value) &&
@@ -109,8 +118,9 @@ function isCandidate(value: unknown): boolean {
     hasNumbers(value.metrics, [
       "total_units", "available_units", "vacant_unrented", "notice_unrented", "down_units",
       "occupancy_pct", "leased_pct", "vacant_unrented_exposure", "expiring_60", "comparable_units",
+      "loss_to_lease_unit_count", "gain_to_lease_unit_count",
     ]) &&
-    (value.metrics.total_loss_to_lease === null || isFiniteNumber(value.metrics.total_loss_to_lease))
+    isLeaseGapPair(value.metrics, true)
   );
 }
 
@@ -129,8 +139,9 @@ function isFacts(value: unknown): value is MorningBriefFacts {
     isRecord(value.portfolio) && hasNumbers(value.portfolio, [
       "total_properties", "total_units", "physical_occupancy_pct", "leased_pct",
       "available_units", "vacant_unrented_exposure", "expiring_60_days",
-      "total_loss_to_lease", "positive_loss_to_lease_count",
-    ]) &&
+      "net_loss_to_lease", "net_gain_to_lease", "loss_to_lease_unit_count",
+      "gain_to_lease_unit_count",
+    ]) && isLeaseGapPair(value.portfolio, false) &&
     isRecord(value.coverage) && Object.values(value.coverage).every(isFiniteNumber) &&
     isRecord(value.data_quality) && hasNumbers(value.data_quality, ["error_count", "warning_count"]) &&
     Array.isArray(value.data_quality.by_code) && value.data_quality.by_code.every((row) =>
@@ -171,7 +182,7 @@ function isRentGapRow(value: unknown): boolean {
     isString(value.property_code) &&
     (value.property_name === null || typeof value.property_name === "string") &&
     isFiniteNumber(value.comparable_units) &&
-    (value.total_loss_to_lease === null || isFiniteNumber(value.total_loss_to_lease))
+    isLeaseGapPair(value, true)
   );
 }
 
@@ -281,7 +292,8 @@ function toClientWidget(widget: MorningBriefSemanticWidget, facts: MorningBriefF
         property_code: candidate.property_code,
         property_name: candidate.property_name,
         comparable_units: candidate.metrics.comparable_units,
-        total_loss_to_lease: candidate.metrics.total_loss_to_lease,
+        net_loss_to_lease: candidate.metrics.net_loss_to_lease,
+        net_gain_to_lease: candidate.metrics.net_gain_to_lease,
       })) } };
     case "data_quality":
       return { ...base, type: "data_quality", data: {

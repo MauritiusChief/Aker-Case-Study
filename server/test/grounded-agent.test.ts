@@ -32,8 +32,10 @@ const facts: BriefFacts = {
     available_units: 2,
     vacant_unrented_exposure: 3_000,
     expiring_60_days: 1,
-    total_loss_to_lease: 400,
-    positive_loss_to_lease_count: 2,
+    net_loss_to_lease: 0,
+    net_gain_to_lease: 400,
+    loss_to_lease_unit_count: 0,
+    gain_to_lease_unit_count: 2,
   },
   coverage: { market_rent_coverage: 100 },
   data_quality: { error_count: 0, warning_count: 0, by_code: [] },
@@ -151,6 +153,9 @@ test("serializes facts and tool results as YAML while preserving JSON arguments"
 
   const initial = model.requests[0].messages[1].content as string;
   assert.match(initial, /Initial citable source brief_facts:\nas_of_date: 2026\/02\/25/);
+  assert.match(initial, /net_loss_to_lease: 0/);
+  assert.match(initial, /net_gain_to_lease: 400/);
+  assert.doesNotMatch(initial, /total_loss_to_lease:/);
   assert.match(initial, /Additional non-citable context:\nnote: \|-/);
 
   const nextMessages = model.requests[1].messages;

@@ -17,13 +17,14 @@ import type {
   MorningBriefWidget as Widget,
 } from "../types";
 
-const STORAGE_KEY = "aker.morning-brief.workspace.v1";
-const STORAGE_VERSION = 1;
+const STORAGE_KEY = "aker.morning-brief.workspace.v2";
+const LEGACY_STORAGE_KEY = "aker.morning-brief.workspace.v1";
+const STORAGE_VERSION = 2;
 const RECENT_CHAT_LIMIT = 12;
 const MAX_WIDGETS = 6;
 
 interface PersistedWorkspace {
-  version: 1;
+  version: 2;
   brief: MorningBriefContent | null;
   full_chat: MorningBriefChatMessage[];
   recent_chat: MorningBriefChatMessage[];
@@ -104,6 +105,7 @@ function isChatMessage(value: unknown): value is MorningBriefChatMessage {
 
 function loadWorkspace(): PersistedWorkspace {
   try {
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return EMPTY_WORKSPACE;
     const value: unknown = JSON.parse(raw);

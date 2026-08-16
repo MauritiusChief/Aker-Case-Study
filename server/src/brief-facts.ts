@@ -16,6 +16,31 @@ import type { DataQualityIssue } from "./analysis/quality.js";
 
 const MAX_CANDIDATES = 6;
 
+export function splitNetLeaseGap(value: number): {
+  net_loss_to_lease: number;
+  net_gain_to_lease: number;
+};
+export function splitNetLeaseGap(value: null): {
+  net_loss_to_lease: null;
+  net_gain_to_lease: null;
+};
+export function splitNetLeaseGap(value: number | null): {
+  net_loss_to_lease: number | null;
+  net_gain_to_lease: number | null;
+};
+export function splitNetLeaseGap(value: number | null): {
+  net_loss_to_lease: number | null;
+  net_gain_to_lease: number | null;
+} {
+  if (value === null) {
+    return { net_loss_to_lease: null, net_gain_to_lease: null };
+  }
+  return {
+    net_loss_to_lease: value > 0 ? value : 0,
+    net_gain_to_lease: value < 0 ? Math.abs(value) : 0,
+  };
+}
+
 export function summarizeDataQuality(issues: DataQualityIssue[]): QualityFacts {
   const counts = new Map<string, { severity: "error" | "warning"; count: number }>();
   for (const issue of issues) {
@@ -117,7 +142,9 @@ export function buildBriefFactsFromSummaries(
         leased_pct: row.leased_pct,
         vacant_unrented_exposure: row.vacant_unrented_exposure,
         expiring_60: row.expiring_60,
-        total_loss_to_lease: rent?.total_loss_to_lease ?? null,
+        ...splitNetLeaseGap(rent?.total_loss_to_lease ?? null),
+        loss_to_lease_unit_count: rent?.positive_count ?? 0,
+        gain_to_lease_unit_count: rent?.premium_count ?? 0,
         comparable_units: rent?.comparable_units ?? 0,
       },
     };
@@ -147,8 +174,9 @@ export function buildBriefFactsFromSummaries(
       available_units: portfolio.metrics.available_units,
       vacant_unrented_exposure: portfolio.metrics.vacant_unrented_exposure,
       expiring_60_days: portfolio.metrics.expiring_60_days,
-      total_loss_to_lease: rentGap.metrics.total_loss_to_lease,
-      positive_loss_to_lease_count: rentGap.metrics.positive_loss_to_lease_count,
+      ...splitNetLeaseGap(rentGap.metrics.total_loss_to_lease),
+      loss_to_lease_unit_count: rentGap.metrics.positive_loss_to_lease_count,
+      gain_to_lease_unit_count: rentGap.metrics.premium_count,
     },
     coverage: { ...portfolio.coverage, ...rentGap.coverage },
     data_quality: summarizeDataQuality(portfolio.data_quality),

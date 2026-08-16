@@ -73,21 +73,41 @@ function PropertyRanking({ widget }: { widget: PropertyRankingWidget }) {
 }
 
 function RentGapRanking({ widget }: { widget: RentGapRankingWidget }) {
-  const max = Math.max(1, ...widget.data.rows.map((row) => Math.abs(row.total_loss_to_lease ?? 0)));
+  const max = Math.max(
+    1,
+    ...widget.data.rows.map((row) =>
+      Math.max(row.net_gain_to_lease ?? 0, row.net_loss_to_lease ?? 0)
+    )
+  );
   return (
     <div className="rent-gap-list">
       {widget.data.rows.map((row) => {
-        const gap = row.total_loss_to_lease ?? 0;
+        const loss = row.net_loss_to_lease;
+        const gain = row.net_gain_to_lease;
+        const unavailable = loss === null || gain === null;
+        const isGain = !unavailable && (gain ?? 0) > 0;
+        const gap = unavailable
+          ? null
+          : isGain
+            ? gain
+            : loss;
+        const label = unavailable
+          ? "Net rent gap unavailable"
+          : isGain
+            ? "Net Gain-to-Lease"
+            : gap === 0
+              ? "No net rent gap"
+              : "Net Loss-to-Lease";
         return (
           <div className="rent-gap-row" key={row.property_code}>
             <div>
               <strong>{row.property_name ?? row.property_code}</strong>
-              <span>{formatNumber(row.comparable_units)} comparable units</span>
+              <span>{formatNumber(row.comparable_units)} comparable units · {label}</span>
             </div>
             <div className="rent-gap-track" aria-hidden="true">
-              <span className={gap < 0 ? "negative" : ""} style={{ width: `${Math.abs(gap) / max * 100}%` }} />
+              <span className={isGain ? "gain" : ""} style={{ width: `${(gap ?? 0) / max * 100}%` }} />
             </div>
-            <strong className="rent-gap-value">{formatCurrency(gap)}</strong>
+            <strong className="rent-gap-value">{gap === null ? "—" : formatCurrency(gap)}</strong>
           </div>
         );
       })}

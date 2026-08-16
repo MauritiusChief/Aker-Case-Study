@@ -694,7 +694,7 @@ body {
   background: var(--accent);
 }
 
-.rent-gap-track span.negative {
+.rent-gap-track span.gain {
   background: #b45309;
 }
 

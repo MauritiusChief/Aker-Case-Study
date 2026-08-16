@@ -19,3 +19,18 @@ export function formatPercent(value: number, digits = 2): string {
 export function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-CA").format(value);
 }
+
+export function presentLeaseGap(value: number, qualifier?: "Net" | "Average"): {
+  label: string;
+  amount: number;
+} {
+  const terminology = value > 0
+    ? "Loss-to-Lease"
+    : value < 0
+      ? "Gain-to-Lease"
+      : "Rent Gap";
+  return {
+    label: qualifier ? `${qualifier} ${terminology}` : terminology,
+    amount: Math.abs(value),
+  };
+}
