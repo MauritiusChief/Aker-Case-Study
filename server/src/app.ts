@@ -8,9 +8,24 @@ import { availabilityRouter } from "./routes/availability.routes.js";
 import { portfolioRouter } from "./routes/portfolio.routes.js";
 import { leaseRiskRouter } from "./routes/lease-risk.routes.js";
 import { rentGapRouter } from "./routes/rent-gap.routes.js";
+import { assistantRouter, morningBriefRouter } from "./routes/assistant.routes.js";
+import { llmTracesRouter } from "./routes/llm-traces.routes.js";
+import { DeepSeekChatModel } from "./deepseek.js";
+import type { ChatModel } from "./assistant-types.js";
+import { LLM_TRACE_DIR } from "./config.js";
+import {
+  FileLlmTraceStore,
+  type LlmTraceReader,
+  type LlmTraceWriter,
+} from "./llm-trace.js";
 
-export function createApp(db: AppDatabase): Express {
+export function createApp(
+  db: AppDatabase,
+  model?: ChatModel,
+  traceStore: LlmTraceReader & LlmTraceWriter = new FileLlmTraceStore(LLM_TRACE_DIR)
+): Express {
   const app = express();
+  const activeModel = model ?? new DeepSeekChatModel({ traceWriter: traceStore });
   app.use(express.json());
 
   app.get("/health", (_req, res) => {
@@ -25,6 +40,9 @@ export function createApp(db: AppDatabase): Express {
   app.use("/api/portfolio", portfolioRouter(db));
   app.use("/api/lease-risks", leaseRiskRouter(db));
   app.use("/api/rent-gap", rentGapRouter(db));
+  app.use("/api/morning-brief", morningBriefRouter(db, activeModel));
+  app.use("/api/assistant", assistantRouter(db, activeModel));
+  app.use("/api/debug/llm-traces", llmTracesRouter(traceStore));
 
   app.use(
     (

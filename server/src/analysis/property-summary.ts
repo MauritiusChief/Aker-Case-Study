@@ -27,7 +27,7 @@ export interface PropertyMetrics {
   occupied: number;
   vacant: number;
   avail: number;
-  occ_pct: number;
+  occupancy_pct: number;
   leased_pct: number;
   vacant_unrented_exposure: number;
   expiring_60: number;
@@ -141,7 +141,7 @@ export function computePropertySummary(
     occupied: availability?.occupied ?? 0,
     vacant: availability?.vacant ?? 0,
     avail: availability?.avail ?? 0,
-    occ_pct: availability?.occ_pct ?? 0,
+    occupancy_pct: availability?.occupancy_pct ?? 0,
     leased_pct: availability?.leased_pct ?? 0,
     vacant_unrented_exposure: vacantUnrentedExposure,
     expiring_60: expiring60,

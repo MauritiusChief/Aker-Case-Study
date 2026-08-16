@@ -2,11 +2,12 @@ import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { PortfolioPage } from "./pages/PortfolioPage";
 import { LeaseRiskPage } from "./pages/LeaseRiskPage";
 import { PropertyDetailPage } from "./pages/PropertyDetailPage";
+import { MorningBriefPage } from "./pages/MorningBriefPage";
 
 const navItems = [
   { to: "/portfolio", label: "Portfolio Overview" },
   { to: "/lease-risk", label: "Lease Risk" },
-  { to: "/what-if", label: "What-if" },
+  { to: "/morning-brief", label: "Morning Brief" },
 ];
 
 export function App() {
@@ -28,21 +29,9 @@ export function App() {
           <Route path="/portfolio" element={<PortfolioPage />} />
           <Route path="/lease-risk" element={<LeaseRiskPage />} />
           <Route path="/properties/:propertyCode" element={<PropertyDetailPage />} />
-          <Route path="/what-if" element={<ComingSoon title="What-if" />} />
+          <Route path="/morning-brief" element={<MorningBriefPage />} />
         </Routes>
       </main>
-    </div>
-  );
-}
-
-function ComingSoon({ title }: { title: string }) {
-  return (
-    <div className="placeholder">
-      <h2>{title}</h2>
-      <p>This page is implemented in a later phase.</p>
-      <Link to="/portfolio" className="nav-link">
-        Back to Portfolio
-      </Link>
     </div>
   );
 }
