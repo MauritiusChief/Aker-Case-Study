@@ -85,7 +85,6 @@ class RecordingModel {
     this.requests.push({
       messages: [...request.messages],
       tools: [...request.tools],
-      ...(request.toolChoice === undefined ? {} : { toolChoice: request.toolChoice }),
     });
     const response = this.responses[this.index++];
     if (!response) throw new Error("No fake response left");
@@ -438,7 +437,7 @@ test("injects non-citable budget updates after work rounds", async () => {
   assert.equal(parsed.remaining_widget_calls, 8);
 });
 
-test("forces the named submission tool once work budgets are exhausted", async () => {
+test("only offers the submission tool once work budgets are exhausted", async () => {
   const { model, promise } = run([
     call("c1", "get_availability"),
     submit(),
@@ -453,10 +452,7 @@ test("forces the named submission tool once work budgets are exhausted", async (
   await promise;
   const finalRequest = model.requests[1];
   assert.deepEqual(finalRequest.tools.map((tool) => tool.function.name), ["submit_morning_brief"]);
-  assert.deepEqual(finalRequest.toolChoice, {
-    type: "function",
-    function: { name: "submit_morning_brief" },
-  });
+  assert.ok(!("toolChoice" in finalRequest));
 });
 
 test("passes provider reasoning content into the next request", async () => {

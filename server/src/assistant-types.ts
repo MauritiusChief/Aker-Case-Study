@@ -27,14 +27,6 @@ export interface ModelToolCall {
   };
 }
 
-export type ModelToolChoice =
-  | "auto"
-  | "required"
-  | {
-      type: "function";
-      function: { name: string };
-    };
-
 export interface ModelMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string | null;
@@ -86,7 +78,6 @@ export interface ModelTool {
 export interface ModelRequest {
   messages: ModelMessage[];
   tools: ModelTool[];
-  toolChoice?: ModelToolChoice;
 }
 
 export interface ChatModel {

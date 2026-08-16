@@ -167,22 +167,22 @@ export async function runGroundedAgent(
     const remainingToolCalls = config.maxRealToolCalls - realToolCalls;
     const remainingToolRounds = config.maxToolRounds - toolRounds;
     const remainingWidgetCalls = config.maxWidgetToolCalls - widgetToolCalls;
-    const mustSubmit =
+    const submissionOnly =
       modelAttempts >= config.maxModelAttempts - 1 ||
       ((remainingToolCalls <= 0 || remainingToolRounds <= 0) && remainingWidgetCalls <= 0);
-    const availableBusinessTools = remainingToolCalls > 0 && remainingToolRounds > 0 && !mustSubmit
+    const availableBusinessTools = remainingToolCalls > 0 && remainingToolRounds > 0 && !submissionOnly
       ? tools
       : [];
-    const availableWidgetTools = remainingWidgetCalls > 0 && !mustSubmit ? widgetTools : [];
+    const availableWidgetTools = remainingWidgetCalls > 0 && !submissionOnly ? widgetTools : [];
     const submissionTool = buildSubmissionTool([...sources.keys()]);
     const expectedSubmissionName = submissionTool.function.name;
-    const requestTools = mustSubmit
+    const requestTools = submissionOnly
       ? [submissionTool]
       : [...availableBusinessTools, ...availableWidgetTools, submissionTool];
     const openNames = new Set(requestTools.map((tool) => tool.function.name));
 
     debugLog(
-      mustSubmit ? "phase=forced-submit" : "phase=work",
+      submissionOnly ? "phase=submission-only" : "phase=work",
       `modelAttempt=${modelAttempts + 1}`,
       `remainingCalls=${remainingToolCalls}`,
       `remainingRounds=${remainingToolRounds}`,
@@ -191,9 +191,6 @@ export async function runGroundedAgent(
     const response = await model.complete({
       messages,
       tools: requestTools,
-      toolChoice: mustSubmit
-        ? { type: "function", function: { name: expectedSubmissionName } }
-        : "required",
     });
     modelAttempts += 1;
     stripHallucinatedBudgetInfo(response);
@@ -270,7 +267,7 @@ export async function runGroundedAgent(
       };
     }
 
-    if (mustSubmit) invalid(`Model must call ${expectedSubmissionName}`);
+    if (submissionOnly) invalid(`Model must call ${expectedSubmissionName}`);
 
     const businessCalls = calls.filter((call) => isAssistantToolName(call.function.name));
     const widgetCalls = calls.filter((call) => isWidgetToolName(call.function.name));

@@ -102,7 +102,7 @@ maxWidgetToolCalls: 8
 
 ### 4. Submission 独立于业务与 Widget 预算
 
-正常轮次同时开放当前仍有预算的业务工具、Widget CRUD 工具和当前工作流的 submission tool，并使用 `tool_choice: "required"`。达到预算边界或最后一次模型机会时，只开放 submission tool。
+正常轮次同时开放当前仍有预算的业务工具、Widget CRUD 工具和当前工作流的 submission tool。请求不发送 `tool_choice`，由 DeepSeek Thinking Mode 自主选择工具。达到预算边界或最后一次模型机会时，只开放 submission tool。
 
 - `toolRounds === maxToolRounds`
 - `realToolCalls === maxRealToolCalls`
@@ -110,17 +110,16 @@ maxWidgetToolCalls: 8
 
 达到业务工具轮次上限时不再开放业务工具；如果 Widget 预算仍有剩余，模型仍可调整 Widget 草稿或直接提交。
 
-强制提交请求在 Agent 层使用：
+仅提交阶段在 Agent 层使用：
 
 ```ts
 model.complete({
   messages,
   tools: [submissionTool],
-  toolChoice: { type: "function", function: { name: submissionTool.function.name } },
 });
 ```
 
-普通轮次使用 `tool_choice: "required"`，不再发送 JSON response mode。
+所有轮次均省略 `tool_choice` 和 JSON response mode，以兼容默认启用的 Thinking Mode。普通正文不能替代 submission tool；未按协议调用工具时应用仍会拒绝响应。
 
 ### 5. Schema 限制与 Hallucination 清理同时保留
 
@@ -211,12 +210,12 @@ user task + brief_facts
 
 达到 4 个真实工具轮次
 应用注入：remaining_tool_rounds = 0
-DeepSeek 请求：不提供 tools/tool_choice
-模型响应：最终 JSON
+DeepSeek 请求：只提供 submission tool，不提供 tool_choice
+模型响应：submission tool call
 应用：结构、引用、范围和 Widget 校验
 ```
 
-模型如果在预算耗尽前返回无工具内容，则直接进入现有最终输出校验，不再额外请求一次。
+模型如果返回无工具内容，应用将其视为无效响应；最终文本只能通过 submission tool 提交。
 
 ## 文件级执行步骤
 
@@ -263,7 +262,7 @@ type MessageToolName = AssistantToolName | WidgetToolName | SubmissionToolName |
 - 真实工具白名单、ID 和预算预检查。
 - 真实工具执行及 source ID 分配。
 - 应用 `_budget_info` pair 注入。
-- `tool_choice: "required"` 和 named submission 状态机。
+- Thinking-compatible 的自主工具选择和 submission-only 状态机。
 - submit-wins 及同轮 Widget mutation 原子事务。
 - 安全事件和错误分类。
 - 返回结构化 submission arguments、Widget 草稿、sources 和调查统计。
@@ -288,7 +287,7 @@ type MessageToolName = AssistantToolName | WidgetToolName | SubmissionToolName |
 ### 5. `server/src/deepseek.ts`
 
 - 解析并保留 `choices[0].finish_reason`。
-- 转发 `required` 和 named `tool_choice`。
+- 有工具时发送 tools，但始终省略 `tool_choice`。
 - 不再发送 `response_format: json_object`。
 - 保留 timeout、auth、rate limit 和 provider error 映射。
 - 不打印 Authorization header、API Key、完整请求或完整响应。
@@ -371,7 +370,7 @@ INVESTIGATION_LIMIT
 - `_budget_info` 不计入真实工具调用数。
 - `_budget_info` 不进入 sources。
 - 第 4 个工具轮次后注入 `remaining_tool_rounds: 0`。
-- 预算耗尽后最终请求只开放 named submission tool。
+- 预算耗尽后最终请求只开放 submission tool，但不强制 `tool_choice`。
 - 普通正文永远不能替代 submission tool。
 - 一轮请求多个真实工具时只增加 1 个 tool round。
 - 总计恰好 8 次真实调用允许执行。
@@ -398,7 +397,7 @@ INVESTIGATION_LIMIT
 
 - 空工具请求的 HTTP body 不包含 `tools`。
 - 空工具请求的 HTTP body 不包含 `tool_choice`。
-- 普通请求包含 `tool_choice: "required"`，强制提交请求包含 named choice。
+- 所有工具请求都省略 `tool_choice`，兼容 Thinking Mode。
 - `finish_reason` 被正确解析。
 - 现有配置、认证、限流、超时和 malformed payload 测试继续通过。
 
@@ -444,7 +443,7 @@ npm run build
 - 每轮真实工具执行后都有应用注入的预算状态。
 - 模型生成的 `_budget_info` 永远不会执行。
 - 应用注入的 `_budget_info` 不可引用且不计入调查统计。
-- 4 个真实工具轮次后仍有一次 named submission 机会。
+- 4 个真实工具轮次后仍有一次 submission-only 机会。
 - 最终 DeepSeek 请求只开放对应 submission tool。
 - 工具调用预算在执行前强制检查，不发生部分超支执行。
 - 现有事实范围和 citation 契约保持不变；Widget 改为事务型 CRUD 草稿。

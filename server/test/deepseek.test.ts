@@ -83,7 +83,7 @@ test("DeepSeek omits tools and tool_choice from the body when no tools are provi
   assert.ok(!("tool_choice" in body));
 });
 
-test("DeepSeek includes tools and tool_choice auto when tools are provided", async () => {
+test("DeepSeek includes tools but omits tool_choice for thinking-mode compatibility", async () => {
   let body: Record<string, unknown> = {};
   const model = new DeepSeekChatModel({
     apiKey: "test",
@@ -94,46 +94,7 @@ test("DeepSeek includes tools and tool_choice auto when tools are provided", asy
   });
   await model.complete({ ...request, tools: [sampleTool] });
   assert.deepEqual(body.tools, [sampleTool]);
-  assert.equal(body.tool_choice, "auto");
-});
-
-test("DeepSeek forwards required and named tool choices", async () => {
-  const bodies: Record<string, unknown>[] = [];
-  const model = new DeepSeekChatModel({
-    apiKey: "test",
-    fetchImpl: async (_input, init) => {
-      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
-      return okResponse();
-    },
-  });
-  await model.complete({ ...request, tools: [sampleTool], toolChoice: "required" });
-  await model.complete({
-    ...request,
-    tools: [sampleTool],
-    toolChoice: { type: "function", function: { name: "get_availability" } },
-  });
-  assert.equal(bodies[0].tool_choice, "required");
-  assert.deepEqual(bodies[1].tool_choice, {
-    type: "function",
-    function: { name: "get_availability" },
-  });
-});
-
-test("DeepSeek rejects a named choice for an unavailable tool", async () => {
-  const model = new DeepSeekChatModel({
-    apiKey: "test",
-    fetchImpl: async () => {
-      throw new Error("fetch should not run");
-    },
-  });
-  await assert.rejects(
-    model.complete({
-      ...request,
-      tools: [sampleTool],
-      toolChoice: { type: "function", function: { name: "missing" } },
-    }),
-    errorCode("llm_invalid_response")
-  );
+  assert.ok(!("tool_choice" in body));
 });
 
 test("DeepSeek preserves provider tool calls with null content", async () => {
@@ -203,7 +164,6 @@ test("DeepSeek traces the exact provider request and response", async () => {
     messages: request.messages,
     temperature: 0.1,
     tools: [sampleTool],
-    tool_choice: "auto",
   });
   assert.deepEqual(traces[0].response, { httpStatus: 200, body: providerBody });
   assert.equal(traces[0].error, null);
